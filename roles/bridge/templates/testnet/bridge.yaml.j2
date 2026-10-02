@@ -1,0 +1,35 @@
+---
+server-listen-port: {{ sui.bridge.ports.server_listen_port }}
+metrics-port: {{ sui.bridge.ports.metrics_port }}
+bridge-authority-key-path: {{ bridge_authority_key_path }}
+run-client: true
+db-path: {{ bridge_data_dir }}
+approved-governance-actions:
+    - LimitUpdateAction:
+          nonce: 1
+          chain_id: SuiTestnet
+          sending_chain_id: EthSepolia
+          new_usd_limit: 1000000000000000000
+    - LimitUpdateAction:
+          nonce: 1
+          chain_id: EthSepolia
+          sending_chain_id: SuiTestnet
+          new_usd_limit: 1000000000000000000
+    - EvmContractUpgradeAction:
+          nonce: 0
+          chain_id: EthSepolia
+          proxy_address: 0xFA393e28Dd7F88F66112324b20F45F8AA60c19Df
+          new_impl_address: 0x5FAaCBAed273917398383312e7DB90d3c2cCa9B0
+          call_data: [ ]
+sui:
+    sui-rpc-url: {{ vault.testnet.bridge.sui.rpc_url }}
+    sui-bridge-chain-id: 1
+    bridge-client-key-path: {{ bridge_client_key_path }}
+eth:
+    eth-rpc-url: {{ vault.testnet.bridge.eth.rpc_url }}
+    eth-bridge-proxy-address: 0xAE68F87938439afEEDd6552B0E83D2CbC2473623
+    eth-bridge-chain-id: 11
+    eth-contracts-start-block-fallback: 5997013
+metrics:
+    push-interval-seconds: 60
+    push-url: https://metrics-proxy.testnet.sui.io:8443/publish/metrics

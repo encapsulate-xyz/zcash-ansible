@@ -1,0 +1,40 @@
+---
+# maintains ports, bianry or repo urls
+
+org: encapsulate
+domain_regex: ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$
+monitor_server_dns: monitor.encapsulate.xyz
+ansible_port: 8192
+
+architecture_map:
+  x86_64: amd64
+  aarch64: arm64
+
+default_node_types:
+  - validator
+  - default
+
+tmp_dir: /tmp
+
+go:
+  root: /usr/local/go
+  path: "{{ tmp_dir }}/go"
+  module111: "on"
+
+sui:
+  validator:
+    source_url: https://releases.sui.io
+    ports:
+      server_listen_port: 9191
+      metrics_port: 9186
+  fullnode:
+    version: 88888888888
+    source_url: https://releases.sui.io
+    ports:
+      server_listen_port: 9191
+      metrics_port: 9186
+  bridge:
+    source_url: https://releases.sui.io
+    ports:
+      server_listen_port: 9191
+      metrics_port: 9186

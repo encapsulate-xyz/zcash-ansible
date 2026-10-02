@@ -1,0 +1,51 @@
+---
+- name: Set project and service identifier in facts
+  ansible.builtin.set_fact:
+    project: "{{ group_names[0] }}"
+    service_identifier: "{{ group_names[0] }}{{ '' if type in default_node_types else '-' + type }}"
+
+- name: Set architecture variable based on system architecture
+  ansible.builtin.set_fact:
+    system_architecture: "{{ architecture_map[ansible_architecture] | default(ansible_architecture) }}"
+
+- name: Display environment being deployed to
+  ansible.builtin.debug:
+    msg:
+      - "Deploying to Host: {{ inventory_hostname }}"
+      - "Groups: {{ group_names }}"
+      - "Project: {{ project }}"
+      - "Environment: {{ env }}"
+      - "Type: {{ type }}"
+      - "Version: {{ vars[project][type].version }}"
+      - "Username: {{ service_identifier }}"
+      - "Service Name: {{ service_identifier }}"
+      - "Operating System: {{ ansible_system | lower }}"
+      - "System Architecture: {{ system_architecture }}"
+
+- name: Confirm deployment details
+  ansible.builtin.pause:
+    seconds: 40
+
+- name: Please confirm again
+  ansible.builtin.debug:
+    msg:
+      - "Deploying to Host: {{ inventory_hostname }}"
+      - "Project: {{ project }}"
+      - "Environment: {{ env }}"
+      - "Type: {{ type }}"
+
+- name: Confirm deployment details
+  ansible.builtin.pause:
+    seconds: 20
+
+- name: Include configure ufw task
+  ansible.builtin.include_tasks: tasks/configure_ufw.yml
+
+- name: Remove existing Go directories (if any)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  become: true
+  loop:
+    - "{{ go.root }}"
+    - "{{ go.path }}"

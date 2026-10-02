@@ -1,0 +1,9 @@
+---
+# maintains versions and can overwrite all.yml
+sui:
+  validator:
+    version: c9ae0f9282a0643544db27409e07d3ac5dd09105
+  fullnode:
+    version: c9ae0f9282a0643544db27409e07d3ac5dd09105
+  bridge:
+    version: 08a4ef986fdf44a2233f010c5e3764ae888c54a2
