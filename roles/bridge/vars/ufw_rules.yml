@@ -1,7 +1,0 @@
----
-bridge_ufw_rules:
-  - port: "{{ sui.bridge.ports.server_listen_port }}"
-    proto: tcp
-    rule: allow
-    from: any
-    comment: server_listen_port
