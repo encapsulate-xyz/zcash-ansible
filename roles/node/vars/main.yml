@@ -1,0 +1,9 @@
+---
+# maintains file name, binary names, and anything which is not a directory or path
+
+# config file names
+node_config_file_name: config.toml
+node_secret_seed_file_name: secret.seed
+
+# binary names
+node_service_default_binary_name: "zebrad_{{ zcash.validator.version }}_ubuntu"

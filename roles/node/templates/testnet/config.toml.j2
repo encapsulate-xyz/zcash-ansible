@@ -1,0 +1,178 @@
+[consensus]
+checkpoint_sync = true
+
+[crosslink]
+bft_peers = [
+    "45.63.75.9:12301",
+    "70.34.220.94:12301",
+    "64.177.44.176:12301",
+]
+disable_shipped_hardforks = false
+disable_the_headless_wallet = false
+disable_zaino = false
+hardforks = []
+
+[debug_time_dilation]
+multiplier = 0
+start_unix_time = 0
+
+[health]
+enforce_on_test_networks = false
+min_connected_peers = 1
+ready_max_blocks_behind = 2
+ready_max_tip_age = "5m"
+
+[mempool]
+debug_enable_at_height = 0
+eviction_memory_time = "1h"
+max_datacarrier_bytes = 83
+tx_cost_limit = 80000000
+
+[metrics]
+endpoint_addr = "0.0.0.0:{{ zcash.validator.ports.metrics_port }}"
+
+[mining]
+internal_miner = true
+# Lets other programs take CPU first, which suits a shared machine. On a dedicated server, false is right.
+internal_miner_low_priority = true
+# Change it based on no of cpu on server
+internal_miner_threads = 1
+miner_address = "tmKxXxeU6aCsgnTACAoHGPSwkZTqAopfCj3"
+
+[network]
+cache_dir = true
+crawl_new_peer_interval = "1m 1s"
+initial_mainnet_peers = [
+    "dnsseed.str4d.xyz:8233",
+    "dnsseed.z.cash:8233",
+    "mainnet.seeder.shieldedinfra.net:8233",
+    "mainnet.seeder.zfnd.org:8233",
+    "seeder.zec.rocks:8233",
+]
+initial_testnet_peers = [
+    "45.63.75.9:8233",
+    "70.34.220.94:8233",
+    "64.177.44.176:8233",
+]
+listen_addr = "0.0.0.0:{{ zcash.validator.ports.p2p_port }}"
+max_connections_per_ip = 1
+peerset_initial_target_size = 25
+
+[network.network]
+checkpoints = [[
+    0,
+    [
+    56,
+    44,
+    74,
+    51,
+    38,
+    97,
+    199,
+    237,
+    6,
+    113,
+    243,
+    42,
+    52,
+    215,
+    36,
+    97,
+    159,
+    8,
+    108,
+    97,
+    135,
+    59,
+    206,
+    124,
+    153,
+    133,
+    157,
+    217,
+    146,
+    10,
+    166,
+    5,
+],
+]]
+disable_pow = false
+genesis_hash = "05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38"
+lockbox_disbursements = []
+network_magic = [
+    67,
+    108,
+    84,
+    49,
+]
+network_name = "UnknownTestnet"
+pre_blossom_halving_interval = 840000
+slow_start_interval = 0
+target_difficulty_limit = "07ffff0000000000000000000000000000000000000000000000000000000000"
+temporary_orchard_disabling_soft_fork_height = 4048500
+
+[network.network.activation_heights]
+"NU6.3" = 1
+
+[[network.network.funding_streams]]
+
+[network.network.funding_streams.height_range]
+end = 99999999
+start = 1
+
+[[network.network.funding_streams.recipients]]
+addresses = ["t27tjLaUJZ53JKqWPkgd1XCTNWF636eLQRg"]
+numerator = 20
+receiver = "MajorGrants"
+
+[notify]
+
+[rpc]
+cookie_dir = "{{ node_data_dir }}"
+debug_force_finished_sync = false
+enable_cookie_auth = false
+listen_addr = "127.0.0.1:{{ zcash.validator.ports.rpc_port }}"
+max_response_body_size = 52428800
+parallel_cpu_threads = 0
+
+[state]
+cache_dir = "{{ node_data_dir }}"
+debug_skip_non_finalized_state_backup_task = false
+delete_old_database = false
+elasticsearch_password = ""
+ephemeral = false
+network_initial_peers = [
+    "[::ffff:45.63.75.9]:12001:1fgEw5Nx:-w4ArAa4esTUBjgig6xIQJ4N8DlwL5aufGMcDPGzPE4",
+    "[::ffff:70.34.220.94]:12001:1fgEw5Nx:CgjQzIjxFknQOJfxKP4H5adl3uzGfAN1D0219Q3JSyw",
+    "[::ffff:64.177.44.176]:12001:1fgEw5Nx:jY7963HX-GzMkOhi1c7kxmeKXC4juGhwY2l4NlQheBs",
+]
+network_local_port = {{ zcash.validator.ports.network_local_port }}
+should_backup_non_finalized_state = true
+
+[state.network_checkpoint]
+hash = ""
+height = 0
+
+[sync]
+checkpoint_verify_concurrency_limit = 1000
+download_concurrency_limit = 50
+full_verify_concurrency_limit = 20
+parallel_cpu_threads = 0
+
+[tracing]
+buffer_limit = 128000
+force_use_color = false
+use_color = false
+use_journald = false
+
+[zcashd_compat]
+block_gossip_peer_ips = []
+enabled = false
+manage_zcashd = false
+restart_backoff = "2s"
+restart_backoff_max = "5m"
+restart_reset_after = "1h"
+shutdown_grace_period = "5m"
+startup_delay = "1s"
+zcashd_extra_args = []
+zcashd_source = "path"

@@ -1,0 +1,18 @@
+[Unit]
+Description={{ service_identifier }}
+
+[Service]
+User={{ service_identifier }}
+Group={{ project }}
+WorkingDirectory={{ node_home_dir }}
+ExecStart={{ node_bin_dir }}/{{ service_identifier }} --config {{ node_config_file_path }} \
+    start --headless
+Restart=always
+RestartSec=4
+LimitNOFILE=65536
+MemoryMax=64G
+StandardOutput=append:{{ node_log_file_path }}
+StandardError=inherit
+
+[Install]
+WantedBy=multi-user.target
