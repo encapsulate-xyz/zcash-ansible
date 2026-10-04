@@ -40,12 +40,3 @@
 
 - name: Include configure ufw task
   ansible.builtin.include_tasks: tasks/configure_ufw.yml
-
-- name: Remove existing Go directories (if any)
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  become: true
-  loop:
-    - "{{ go.root }}"
-    - "{{ go.path }}"

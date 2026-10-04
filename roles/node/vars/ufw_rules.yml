@@ -1,0 +1,13 @@
+---
+node_ufw_rules:
+  - port: "{{ zcash.validator.ports.p2p_port }}"
+    proto: tcp
+    rule: allow
+    from: any
+    comment: p2p_port
+
+  - port: "{{ zcash.validator.ports.metrics_port }}"
+    proto: tcp
+    rule: allow
+    from: "{{ monitor_server_dns }}"
+    comment: metrics_port
