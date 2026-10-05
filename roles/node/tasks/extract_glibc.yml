@@ -1,0 +1,42 @@
+---
+- name: Create a tmp directory
+  ansible.builtin.file:
+    path: "{{ tmp_dir }}/{{ service_identifier }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download glibc package
+  ansible.builtin.get_url:
+    url: "{{ zcash.validator.glibc.source_url }}/{{ node_glibc_package_file_name }}"
+    dest: "{{ tmp_dir }}/{{ service_identifier }}/{{ node_glibc_package_file_name }}"
+    checksum: "{{ zcash.validator.glibc.checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Extract glibc package
+  ansible.builtin.command:
+    cmd: >-
+      dpkg-deb -x
+      "{{ tmp_dir }}/{{ service_identifier }}/{{ node_glibc_package_file_name }}"
+      {{ tmp_dir }}/{{ service_identifier }}
+    creates: "{{ extracted_dir }}/{{ node_glibc_loader_file_name }}"
+
+- name: Copy lib files
+  ansible.builtin.copy:
+    src: "{{ extracted_dir }}/"
+    dest: "{{ node_lib_dir }}"
+    remote_src: true
+    owner: root
+    group: root
+    force: true
+    mode: "0755"
+  notify:
+    - Restart service
+
+- name: Clean up the temporary directory
+  ansible.builtin.file:
+    path: "{{ tmp_dir }}/{{ service_identifier }}"
+    state: absent

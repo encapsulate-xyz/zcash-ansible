@@ -5,8 +5,15 @@ Description={{ service_identifier }}
 User={{ service_identifier }}
 Group={{ project }}
 WorkingDirectory={{ node_home_dir }}
+{# the system loader can't load a newer libc, so the binary is started by the loader that ships with it #}
+{% if node_glibc_compat | default(true) | bool %}
+ExecStart={{ node_lib_dir }}/{{ node_glibc_loader_file_name }} --library-path {{ node_lib_dir }}:/usr/lib/{{ ansible_architecture }}-linux-gnu \
+    {{ node_bin_dir }}/{{ service_identifier }} --config {{ node_config_file_path }} \
+    start --headless
+{% else %}
 ExecStart={{ node_bin_dir }}/{{ service_identifier }} --config {{ node_config_file_path }} \
     start --headless
+{% endif %}
 Restart=always
 RestartSec=4
 LimitNOFILE=65536

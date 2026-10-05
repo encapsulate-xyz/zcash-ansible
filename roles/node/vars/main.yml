@@ -7,3 +7,7 @@ node_secret_seed_file_name: secret.seed
 
 # binary names
 node_service_default_binary_name: "zebrad_{{ zcash.validator.version }}_ubuntu"
+
+# glibc file names
+node_glibc_package_file_name: "libc6_{{ zcash.validator.glibc.package_version }}_{{ system_architecture }}.deb"
+node_glibc_loader_file_name: ld-linux-x86-64.so.2
