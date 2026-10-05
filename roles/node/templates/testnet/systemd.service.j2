@@ -18,7 +18,7 @@ Restart=always
 RestartSec=4
 LimitNOFILE=65536
 MemoryMax=64G
-CPUQuota=1000%
+CPUQuota={{ cpu_quota }}
 StandardOutput=append:{{ node_log_file_path }}
 StandardError=inherit
 
