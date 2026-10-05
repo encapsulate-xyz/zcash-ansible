@@ -35,6 +35,22 @@
   notify:
     - Restart service
 
+- name: Get the host glibc version
+  ansible.builtin.command:
+    cmd: getconf GNU_LIBC_VERSION
+  register: node_host_glibc
+  changed_when: false
+
+- name: Set whether the host glibc is older than the binary needs
+  ansible.builtin.set_fact:
+    node_glibc_compat: "{{ node_host_glibc.stdout.split()[-1] is version(zcash.validator.glibc.version, '<') }}"
+
+- name: Include extract glibc task
+  when: node_glibc_compat | bool
+  ansible.builtin.include_tasks: extract_glibc.yml
+  vars:
+    extracted_dir: "{{ tmp_dir }}/{{ service_identifier }}/usr/lib/{{ ansible_architecture }}-linux-gnu"
+
 - name: Fetch secrets environment from HCP Vault
   when: fetch_vault_secrets | default(false) | bool
   block:

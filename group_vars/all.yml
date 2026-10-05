@@ -19,6 +19,8 @@ tmp_dir: /tmp
 zcash:
   validator:
     source_url: https://github.com/ShieldedLabs/crosslink_monolith/releases/download
+    glibc:
+      source_url: https://archive.ubuntu.com/ubuntu/pool/main/g/glibc
     ports:
       p2p_port: 8788
       metrics_port: 8789
