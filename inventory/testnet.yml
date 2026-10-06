@@ -31,3 +31,8 @@ all:
           cpu_quota: "600%"
           internal_miner_threads: 4
           parallel_cpu_threads: 4
+        ts.i6.validator.zcash.testnet.encapsulate.xyz:
+          type: validator
+          cpu_quota: "600%"
+          internal_miner_threads: 4
+          parallel_cpu_threads: 4
