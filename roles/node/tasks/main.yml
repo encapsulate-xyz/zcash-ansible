@@ -5,21 +5,7 @@
 
 - name: Apply UFW rules for each node type
   ansible.builtin.include_tasks: tasks/apply_ufw_rules.yml
-  loop: "{{ node_ufw_rules }}"
-
-# Hosts with rpc_tailnet bind the RPC to every interface (config.toml.j2); this lets it in on the
-# Tailscale interface only. Everything else stays denied by the default incoming policy, and the
-# Tailscale grants in server-setup-playbook decide which tailnet devices may connect.
-- name: Allow the node RPC on the Tailscale interface
-  when: rpc_tailnet | default(false) | bool
-  ansible.builtin.include_tasks: tasks/apply_ufw_rules.yml
-  loop:
-    - port: "{{ zcash.validator.ports.rpc_port }}"
-      proto: tcp
-      rule: allow
-      from: any
-      interface: tailscale0
-      comment: rpc_port on tailscale0
+  loop: "{{ node_ufw_rules + (node_rpc_tailnet_ufw_rules if (rpc_tailnet | default(false) | bool) else []) }}"
 
 - name: Include user creation task
   ansible.builtin.include_tasks: tasks/create_user_and_directories.yml
