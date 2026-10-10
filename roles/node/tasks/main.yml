@@ -71,3 +71,21 @@
   notify:
     - Reload service
     - Restart service
+
+# Lets tailnet peers (the Holdfast explorer's indexer) reach the node RPC while it stays bound to
+# 127.0.0.1. Who may connect is decided by the Tailscale grants in server-setup-playbook.
+- name: Forward the node RPC to the tailnet
+  when: tailscale_serve_rpc | default(false) | bool
+  block:
+    - name: Read the Tailscale serve config
+      ansible.builtin.command: tailscale serve status --json
+      register: tailscale_serve_status
+      changed_when: false
+
+    - name: Forward tailnet port {{ zcash.validator.ports.rpc_port }} to the RPC on 127.0.0.1
+      ansible.builtin.command: >-
+        tailscale serve --bg --tcp {{ zcash.validator.ports.rpc_port }}
+        tcp://127.0.0.1:{{ zcash.validator.ports.rpc_port }}
+      when: >-
+        ((tailscale_serve_status.stdout | default('{}', true) | from_json).TCP | default({}))[zcash.validator.ports.rpc_port | string]
+        is not defined

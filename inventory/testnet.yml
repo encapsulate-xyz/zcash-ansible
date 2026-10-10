@@ -8,6 +8,8 @@ all:
       hosts:
         ts.i1.validator.zcash.testnet.encapsulate.xyz:
           type: validator
+          # The finalizer: Holdfast reads its BFT view over Tailscale
+          tailscale_serve_rpc: true
           cpu_quota: "800%"
           internal_miner_threads: 6
           parallel_cpu_threads: 6
