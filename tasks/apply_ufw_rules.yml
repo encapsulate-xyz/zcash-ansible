@@ -18,6 +18,7 @@
     port: "{{ item.port }}"
     proto: "{{ item.proto }}"
     direction: "{{ item.direction | default('in') }}"
+    interface: "{{ item.interface | default(omit) }}"
     from: "{{ from_server_ip.msg | default(item.from) }}"
     to: "{{ item.to | default('any') }}"
     comment: "{{ item.rule }} {{ env }} {{ project }} {{ type }} {{ item.comment }} from {{ item.from }} ip on {{ item.proto }} protocol"
