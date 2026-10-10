@@ -131,6 +131,8 @@ receiver = "MajorGrants"
 cookie_dir = "{{ node_data_dir }}"
 debug_force_finished_sync = false
 enable_cookie_auth = false
+# rpc_tailnet hosts bind every interface: tailnet traffic is trusted on these servers (server-setup-playbook)
+# and Tailscale grants decide who may connect; ufw's default deny keeps it closed on the public interface.
 listen_addr = "{{ '0.0.0.0' if (rpc_tailnet | default(false) | bool) else '127.0.0.1' }}:{{ zcash.validator.ports.rpc_port }}"
 max_response_body_size = 52428800
 parallel_cpu_threads = 0

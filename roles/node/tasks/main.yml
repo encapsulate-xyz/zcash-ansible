@@ -5,7 +5,7 @@
 
 - name: Apply UFW rules for each node type
   ansible.builtin.include_tasks: tasks/apply_ufw_rules.yml
-  loop: "{{ node_ufw_rules + (node_rpc_tailnet_ufw_rules if (rpc_tailnet | default(false) | bool) else []) }}"
+  loop: "{{ node_ufw_rules }}"
 
 - name: Include user creation task
   ansible.builtin.include_tasks: tasks/create_user_and_directories.yml

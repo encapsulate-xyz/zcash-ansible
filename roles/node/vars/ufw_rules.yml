@@ -11,15 +11,3 @@ node_ufw_rules:
     rule: allow
     from: "{{ monitor_server_dns }}"
     comment: metrics_port
-
-# Only on hosts with rpc_tailnet (i1, the finalizer): their RPC binds every interface
-# (config.toml.j2), and this lets it in on the Tailscale interface only. Every other interface stays
-# denied by the default incoming policy; the Tailscale grants in server-setup-playbook decide which
-# tailnet devices may connect.
-node_rpc_tailnet_ufw_rules:
-  - port: "{{ zcash.validator.ports.rpc_port }}"
-    proto: tcp
-    rule: allow
-    from: any
-    interface: tailscale0
-    comment: rpc_port on tailscale0
