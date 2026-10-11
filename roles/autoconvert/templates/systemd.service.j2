@@ -8,11 +8,6 @@ User={{ service_identifier }}
 Group={{ service_identifier }}
 WorkingDirectory={{ autoconvert_home_dir }}
 ExecStart={{ autoconvert_script_file_path }}
-Environment=RPC=http://127.0.0.1:{{ zcash.validator.ports.rpc_port }}
-Environment=SEED_FILE={{ autoconvert_secret_seed_file_path }}
-Environment=CONFIG={{ autoconvert_node_config_file_path }}
-Environment=FINALIZER={{ autoconvert_finalizer }}
-Environment=DRY_RUN={{ '1' if autoconvert_dry_run | default(false) | bool else '0' }}
 Restart=on-failure
 RestartSec=60
 StandardOutput=append:{{ autoconvert_log_file_path }}
