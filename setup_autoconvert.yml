@@ -1,0 +1,28 @@
+---
+- name: Set up the finalizer commission auto-convert
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    project: "{{ group_names[0] }}"
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/vault.yml
+    - group_vars/{{ env }}.yml
+
+  tasks:
+    - name: Set service identifiers
+      ansible.builtin.set_fact:
+        node_service_identifier: "{{ project }}{{ '' if type in default_node_types else '-' + type }}"
+        service_identifier: "{{ project }}{{ '' if type in default_node_types else '-' + type }}-autoconvert"
+
+    - name: Set up the auto-convert on the finalizer only
+      when: autoconvert | default(false) | bool
+      block:
+        - name: Include common handlers
+          ansible.builtin.include_role:
+            name: common
+
+        - name: Include auto-convert role
+          ansible.builtin.include_role:
+            name: autoconvert

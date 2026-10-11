@@ -3,8 +3,8 @@
 # reward bank holds enough. Runs until stopped (Ctrl-C). Conversion isn't limited to staking
 # windows, so this runs around the clock.
 #
-# On i1 it runs as the systemd service `autoconvert`, installed by zcash-ansible as the node's user
-# (zcash), which owns secret.seed. By hand, as that user:
+# On i1 it runs as the systemd service `zcash-autoconvert` (zcash-ansible's autoconvert role), as its
+# own user with its own copy of the node's seed. By hand, as the node's user, which owns secret.seed:
 #   sudo -u zcash ./autoconvert.sh            run on the finalizer box (i1)
 #   sudo -u zcash DRY_RUN=1 ./autoconvert.sh  check everything, never convert
 #

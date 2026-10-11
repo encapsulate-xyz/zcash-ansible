@@ -1,0 +1,52 @@
+---
+# Converts the finalizer's commission into bonds, 1 cTAZ at a time, on hosts with autoconvert: true.
+# It runs as its own user, with its own copy of the node's seed, so nobody needs sudo to run it.
+- name: Include user creation task
+  ansible.builtin.include_tasks: tasks/create_user_and_directories.yml
+  vars:
+    home: "{{ autoconvert_home_dir }}"
+    directories: "{{ autoconvert_directories }}"
+    log_file_path: "{{ autoconvert_log_file_path }}"
+
+- name: Install the tools the auto-convert script uses
+  ansible.builtin.apt:
+    name:
+      - jq
+      - curl
+    state: present
+
+- name: Fetch the node's seed from HCP Vault
+  when: fetch_vault_secrets | default(false) | bool
+  ansible.builtin.include_tasks: tasks/get_and_save_vault_secret.yml
+  vars:
+    vault_secret_source_path: "{{ project }}/{{ org }}/{{ type }}/{{ autoconvert_secret_seed_file_name }}"
+    secret_destination_path: "{{ autoconvert_secret_seed_file_path }}"
+    secret_type: base64
+
+- name: Copy auto-convert script
+  ansible.builtin.copy:
+    src: autoconvert.sh
+    dest: "{{ autoconvert_script_file_path }}"
+    owner: "{{ service_identifier }}"
+    group: "{{ service_identifier }}"
+    mode: "0755"
+  notify:
+    - Restart service
+
+- name: Copy auto-convert systemd service file
+  ansible.builtin.template:
+    src: systemd.service.j2
+    dest: /etc/systemd/system/{{ service_identifier }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload service
+    - Restart service
+
+- name: Start the auto-convert service and enable it at boot
+  ansible.builtin.systemd:
+    name: "{{ service_identifier }}"
+    state: started
+    enabled: true
+    daemon_reload: true
