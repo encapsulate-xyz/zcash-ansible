@@ -23,3 +23,6 @@ node_config_file_path: "{{ node_config_dir }}/{{ node_config_file_name }}"
 node_log_file_path: "{{ node_log_dir }}/{{ service_identifier }}.log"
 
 node_secret_seed_file_path: "{{ node_network_data_dir }}/{{ node_secret_seed_file_name }}"
+
+autoconvert_script_path: "{{ node_bin_dir }}/autoconvert.sh"
+autoconvert_log_file_path: "{{ node_log_dir }}/autoconvert.log"

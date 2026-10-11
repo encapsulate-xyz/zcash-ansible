@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Converts the Encapsulate finalizer's commission into bonds, 1 cTAZ at a time, whenever its
+# reward bank holds enough. Runs until stopped (Ctrl-C). Conversion isn't limited to staking
+# windows, so this runs around the clock.
+#
+# On i1 it runs as the systemd service `autoconvert`, installed by zcash-ansible as the node's user
+# (zcash), which owns secret.seed. By hand, as that user:
+#   sudo -u zcash ./autoconvert.sh            run on the finalizer box (i1)
+#   sudo -u zcash DRY_RUN=1 ./autoconvert.sh  check everything, never convert
+#
+# Run it only on the finalizer box. The node needs the finalizer key to sign each conversion, and
+# the only way to give it that over RPC is the seed string the node derives the key from. So:
+#   - the RPC must be on this machine: anything but localhost is refused
+#   - the seed is read from secret.seed and only ever piped (never in a command line, never printed)
+#   - the node's replies repeat the request, so they're never printed either
+#   - never run this with `bash -x`
+set -u
+set +x
+
+RPC=${RPC:-http://127.0.0.1:8790}
+SEED_FILE=${SEED_FILE:-/opt/zcash/data/crosslink_featurenet_20260929/secret.seed}
+CONFIG=${CONFIG:-}       # node config to check for explicit_bft_key_seed (optional)
+FINALIZER=${FINALIZER:-24e66dea5c0c964aba73d267a91fa21261885653d68377d5351198f29ec1a11c}   # Encapsulate's key
+AMOUNT=100000000         # 1 cTAZ per conversion
+FEE_MARGIN=100000        # 0.001 cTAZ the wallet needs for the fee
+CHECK_EVERY=${CHECK_EVERY:-60}            # seconds between checks
+CONFIRM_TIMEOUT=${CONFIRM_TIMEOUT:-1800}  # stop waiting for a conversion to be mined after 30 min
+DRY_RUN=${DRY_RUN:-0}
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
+ctaz() { awk -v z="$1" 'BEGIN { printf "%.4f", z / 1e8 }'; }
+rpc() { # method [params-json]: for requests that carry no secret
+  jq -nc --arg m "$1" --argjson p "${2:-[]}" '{jsonrpc:"2.0",id:1,method:$m,params:$p}' |
+    curl -s -m 180 -X POST -H 'Content-Type: application/json' "$RPC" -d @-
+}
+tip() { rpc getblockcount | jq -r '.result // empty' 2>/dev/null; }
+bank() { rpc getfinalizerrewardbalance "[\"$FINALIZER\"]" | jq -r '.result // empty' 2>/dev/null; }
+available() { # shielded spendable + transparent: the fee can come from either
+  rpc wallet_spendable_funds | jq -r 'if .result then .result.spendable_zats + .result.unshielded_zats else empty end' 2>/dev/null
+}
+positions() {
+  local n
+  n=$(rpc wallet_staking_positions | jq -r '[(.result.active // {})[] | length] | add // 0' 2>/dev/null)
+  echo "${n:-0}"
+}
+
+# The node's default finalizer key comes from secret.seed via this exact string (Rust's
+# `format!("Crosslink default finalizer identity seed {:?}", seed)` over the 32 bytes).
+seed_text() {
+  local bytes
+  bytes=$(od -An -v -tu1 "$SEED_FILE" | tr -s ' \n' ' ' | sed 's/^ //; s/ $//')
+  [ "$(wc -w <<<"$bytes")" -eq 32 ] || return 1
+  printf 'Crosslink default finalizer identity seed [%s]' "${bytes// /, }"
+}
+
+# Sends one conversion and prints only a result code: ok, busy, nofunds, nobank or failed.
+convert() {
+  local text
+  text=$(seed_text) || { echo failed; return; }
+  printf '%s' "$text" |
+    jq -Rc --argjson a "$AMOUNT" '{ConvertFinalizerRewardToDelegationBond:{amount_zats:$a,finalizer_key_seed:.}} | tojson
+      | {jsonrpc:"2.0",id:1,method:"staking_command",params:[.]}' |
+    curl -s -m 180 -X POST -H 'Content-Type: application/json' "$RPC" -d @- |
+    jq -r 'if has("result") then "ok"
+      else (.error.message // "") as $m
+        | if ($m | test("Another stake in progress")) then "busy"
+          elif ($m | test("failed to create staking transaction")) then "nofunds"
+          elif ($m | test("cannot cover")) then "nobank"
+          else "failed" end end' 2>/dev/null || echo failed
+}
+
+# --- checks before starting ---
+case "$RPC" in
+  http://127.0.0.1:* | http://localhost:* | http://\[::1\]:*) ;;
+  *) echo "RPC must be this machine's own node (http://127.0.0.1:…), not $RPC" >&2; exit 1 ;;
+esac
+for t in jq curl od; do command -v "$t" >/dev/null || { echo "needs $t" >&2; exit 1; }; done
+if [ ! -r "$SEED_FILE" ]; then
+  echo "can't read $SEED_FILE (run as the node's user: sudo -u zcash …, or set SEED_FILE)" >&2
+  exit 1
+fi
+if ! seed_text >/dev/null; then
+  echo "$SEED_FILE isn't a 32-byte secret.seed" >&2
+  exit 1
+fi
+if [ -n "$CONFIG" ] && grep -qE '^[[:space:]]*explicit_bft_key_seed' "$CONFIG"; then
+  echo "$CONFIG sets explicit_bft_key_seed, so the finalizer key doesn't come from secret.seed. Not supported." >&2
+  exit 1
+fi
+
+trap 'log "stopped"; exit 0' INT TERM
+log "auto-convert: 1 cTAZ of commission at a time into bonds on ${FINALIZER:0:8}… via $RPC$([ "$DRY_RUN" = 1 ] && echo ' (dry run: nothing is sent)')"
+last_seen=""
+
+while true; do
+  h=$(tip)
+  if [ -z "$h" ]; then
+    log "node not answering; retrying in ${CHECK_EVERY}s"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  b=$(bank)
+  if [ -z "$b" ]; then
+    log "block $h: couldn't read the reward bank; retrying in ${CHECK_EVERY}s"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+  if ((b < AMOUNT)); then
+    [ "$b" != "$last_seen" ] && log "block $h: $(ctaz "$b") cTAZ in the reward bank, waiting for 1"
+    last_seen=$b
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  avail=$(available)
+  if [ -z "$avail" ]; then
+    log "wallet not ready yet (still syncing?); retrying in ${CHECK_EVERY}s"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+  if ((avail < FEE_MARGIN)); then
+    [ "fee$avail" != "$last_seen" ] && log "block $h: the wallet has $(ctaz "$avail") cTAZ, needs $(ctaz $FEE_MARGIN) for the fee"
+    last_seen="fee$avail"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  before=$(positions)
+  log "block $h: $(ctaz "$b") cTAZ in the reward bank, converting 1 cTAZ (bonds so far: $before)"
+  if [ "$DRY_RUN" = 1 ]; then
+    log "dry run: not sending"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  case $(convert) in
+    ok) ;;
+    busy) log "the wallet is busy with another staking action; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+    nofunds) log "the wallet couldn't fund the fee; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+    nobank) log "the node says the bank can't cover 1 cTAZ yet; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+    *) log "conversion not sent (the node's message is hidden: it repeats the seed); retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+  esac
+
+  # Wait for it to be mined before converting again.
+  log "conversion sent; waiting for it to be mined"
+  waited=0
+  while (($(positions) <= before)); do
+    if ((waited >= CONFIRM_TIMEOUT)); then
+      log "not seen after $((CONFIRM_TIMEOUT / 60)) min; checking the bank again"
+      break
+    fi
+    sleep 20
+    waited=$((waited + 20))
+  done
+  ((waited < CONFIRM_TIMEOUT)) && log "conversion confirmed: $(positions) bonds in total"
+  last_seen=""
+done

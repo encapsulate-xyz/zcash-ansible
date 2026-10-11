@@ -19,3 +19,9 @@
   ansible.builtin.systemd:
     name: "{{ service_identifier }}"
     state: stopped
+
+- name: Restart autoconvert
+  ansible.builtin.systemd:
+    name: autoconvert
+    state: restarted
+    enabled: true

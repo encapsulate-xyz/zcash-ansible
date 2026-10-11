@@ -71,3 +71,6 @@
   notify:
     - Reload service
     - Restart service
+
+- name: Include the commission auto-convert task
+  ansible.builtin.include_tasks: autoconvert.yml

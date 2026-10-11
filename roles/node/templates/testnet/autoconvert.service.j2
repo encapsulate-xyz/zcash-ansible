@@ -1,0 +1,29 @@
+[Unit]
+Description=Convert the {{ service_identifier }} finalizer's commission into bonds
+After={{ service_identifier }}.service
+Wants={{ service_identifier }}.service
+
+[Service]
+User={{ service_identifier }}
+Group={{ project }}
+WorkingDirectory={{ node_home_dir }}
+ExecStart={{ autoconvert_script_path }}
+Environment=RPC=http://127.0.0.1:{{ zcash.validator.ports.rpc_port }}
+Environment=SEED_FILE={{ node_secret_seed_file_path }}
+Environment=CONFIG={{ node_config_file_path }}
+Environment=FINALIZER={{ autoconvert_finalizer }}
+Environment=DRY_RUN={{ '1' if autoconvert_dry_run | default(false) | bool else '0' }}
+Restart=on-failure
+RestartSec=60
+StandardOutput=append:{{ autoconvert_log_file_path }}
+StandardError=inherit
+{# each conversion carries the finalizer seed, so the service may only reach this machine #}
+IPAddressDeny=any
+IPAddressAllow=localhost
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
