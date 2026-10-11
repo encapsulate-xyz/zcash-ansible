@@ -1,0 +1,20 @@
+---
+# maintains directories and paths
+autoconvert_home_dir: /opt/{{ service_identifier }}
+
+autoconvert_bin_dir: "{{ autoconvert_home_dir }}/bin"
+autoconvert_data_dir: "{{ autoconvert_home_dir }}/data"
+autoconvert_log_dir: "{{ autoconvert_home_dir }}/log"
+
+autoconvert_directories:
+  - "{{ autoconvert_home_dir }}"
+  - "{{ autoconvert_bin_dir }}"
+  - "{{ autoconvert_data_dir }}"
+  - "{{ autoconvert_log_dir }}"
+
+autoconvert_log_file_path: "{{ autoconvert_log_dir }}/{{ service_identifier }}.log"
+autoconvert_script_file_path: "{{ autoconvert_bin_dir }}/{{ autoconvert_script_file_name }}"
+# its own copy of the node's seed: the finalizer key signs each conversion
+autoconvert_secret_seed_file_path: "{{ autoconvert_data_dir }}/{{ autoconvert_secret_seed_file_name }}"
+# the node's config, read to check the finalizer key comes from secret.seed
+autoconvert_node_config_file_path: /opt/{{ node_service_identifier }}/config/config.toml

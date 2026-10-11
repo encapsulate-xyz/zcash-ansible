@@ -1,0 +1,24 @@
+[Unit]
+Description=Convert the {{ node_service_identifier }} finalizer's commission into bonds
+After={{ node_service_identifier }}.service
+Wants={{ node_service_identifier }}.service
+
+[Service]
+User={{ service_identifier }}
+Group={{ service_identifier }}
+WorkingDirectory={{ autoconvert_home_dir }}
+ExecStart={{ autoconvert_script_file_path }}
+Restart=on-failure
+RestartSec=60
+StandardOutput=append:{{ autoconvert_log_file_path }}
+StandardError=inherit
+{# each conversion carries the finalizer seed, so the service may only reach this machine #}
+IPAddressDeny=any
+IPAddressAllow=localhost
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
