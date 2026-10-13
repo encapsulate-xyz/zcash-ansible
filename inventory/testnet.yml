@@ -10,7 +10,7 @@ all:
           type: validator
           # The finalizer: Holdfast reads its BFT view over Tailscale, so its RPC binds every interface
           rpc_tailnet: true
-          # Converts its finalizer commission into bonds, 1 cTAZ at a time (roles/node/files/autoconvert.sh)
+          # Converts its finalizer commission into bonds, 1 cTAZ at a time (setup_autoconvert.yml)
           autoconvert: true
           autoconvert_finalizer: 24e66dea5c0c964aba73d267a91fa21261885653d68377d5351198f29ec1a11c
           cpu_quota: "800%"
