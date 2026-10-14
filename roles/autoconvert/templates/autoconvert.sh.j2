@@ -8,7 +8,7 @@
 # RPC is the seed string the node derives the key from. So:
 #   - the RPC must be on this machine: anything but localhost is refused
 #   - the seed is read from secret.seed and only ever piped (never in a command line, never printed)
-#   - the node's replies repeat the request, so they're never printed either
+#   - the node's replies are never printed either (v14's staking_command repeats the request)
 #   - never run this with `bash -x`
 set -u
 set +x
@@ -54,14 +54,28 @@ seed_text() {
 }
 
 # Sends one conversion and prints only a result code: ok, busy, nofunds, nobank or failed.
+# v15 takes it as wallet_staking_action. v14 has only staking_command, so a node that doesn't know
+# the first method is sent the second, and the script works on either side of the upgrade.
 convert() {
+  local code
+  code=$(send_conversion wallet_staking_action)
+  [ "$code" = nomethod ] && code=$(send_conversion staking_command)
+  [ "$code" = nomethod ] && code=failed
+  echo "$code"
+}
+
+# send_conversion method: one request, answered with a result code (or nomethod)
+send_conversion() {
   local text
   text=$(seed_text) || { echo failed; return; }
+  # wallet_staking_action takes the action as an object, staking_command as a JSON string of it
   printf '%s' "$text" |
-    jq -Rc --argjson a "$AMOUNT" '{ConvertFinalizerRewardToDelegationBond:{amount_zats:$a,finalizer_key_seed:.}} | tojson
-      | {jsonrpc:"2.0",id:1,method:"staking_command",params:[.]}' |
+    jq -Rc --arg m "$1" --argjson a "$AMOUNT" '{ConvertFinalizerRewardToDelegationBond:{amount_zats:$a,finalizer_key_seed:.}}
+      | (if $m == "staking_command" then tojson else . end)
+      | {jsonrpc:"2.0",id:1,method:$m,params:[.]}' |
     curl -s -m 180 -X POST -H 'Content-Type: application/json' "$RPC" -d @- |
     jq -r 'if has("result") then "ok"
+      elif .error.code == -32601 then "nomethod"
       else (.error.message // "") as $m
         | if ($m | test("Another stake in progress")) then "busy"
           elif ($m | test("failed to create staking transaction")) then "nofunds"
