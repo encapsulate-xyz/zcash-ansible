@@ -7,19 +7,21 @@ node_config_dir: "{{ node_home_dir }}/config"
 node_data_dir: "{{ node_home_dir }}/data"
 node_lib_dir: "{{ node_home_dir }}/lib"
 node_log_dir: "{{ node_home_dir }}/log"
+
 # zebrad only creates this on first start, but secret.seed is restored into it before that
-node_network_data_dir: "{{ node_data_dir }}/{{ zcash.validator.network }}"
+# the cache directory is renamed when the version changes so that the chain state and wallet carry over
+node_cache_dir: "{{ node_data_dir }}/{{ zcash.validator.cache_dir_name }}"
+node_previous_cache_dir: "{{ node_data_dir }}/{{ zcash.validator.previous_cache_dir_name }}"
 
 node_directories:
   - "{{ node_home_dir }}"
   - "{{ node_bin_dir }}"
   - "{{ node_config_dir }}"
   - "{{ node_data_dir }}"
-  - "{{ node_lib_dir }}"
   - "{{ node_log_dir }}"
-  - "{{ node_network_data_dir }}"
+  - "{{ node_cache_dir }}"
 
 node_config_file_path: "{{ node_config_dir }}/{{ node_config_file_name }}"
 node_log_file_path: "{{ node_log_dir }}/{{ service_identifier }}.log"
 
-node_secret_seed_file_path: "{{ node_network_data_dir }}/{{ node_secret_seed_file_name }}"
+node_secret_seed_file_path: "{{ node_cache_dir }}/{{ node_secret_seed_file_name }}"

@@ -2,8 +2,10 @@
 # maintains versions and can overwrite all.yml
 zcash:
   validator:
-    network: crosslink_featurenet_20260929
-    version: v14
+    version: v15
+    # cache directory names for current and previous builds, so the chain state and wallet carry over
+    cache_dir_name: crosslink_featurenet_20260929_staking3d
+    previous_cache_dir_name: crosslink_featurenet_20260929
     # minimum glibc the release binary needs, hosts with an older one run it on Ubuntu's libc6 package
     glibc:
       version: "2.43"
