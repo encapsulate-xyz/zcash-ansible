@@ -51,6 +51,10 @@
   vars:
     extracted_dir: "{{ tmp_dir }}/{{ service_identifier }}/usr/lib/{{ ansible_architecture }}-linux-gnu"
 
+- name: Include cache directory migration task
+  when: zcash.validator.previous_cache_dir_name | default('') not in ['', zcash.validator.cache_dir_name]
+  ansible.builtin.include_tasks: migrate_cache_directory.yml
+
 - name: Fetch secrets environment from HCP Vault
   when: fetch_vault_secrets | default(false) | bool
   block:

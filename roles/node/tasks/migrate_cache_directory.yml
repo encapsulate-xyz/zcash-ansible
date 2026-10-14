@@ -1,0 +1,21 @@
+---
+- name: Check the previous cache directory
+  ansible.builtin.stat:
+    path: "{{ node_previous_cache_dir }}"
+  register: node_previous_cache
+
+- name: Migrate the previous cache directory
+  when: node_previous_cache.stat.isdir | default(false)
+  block:
+    - name: Stop the service
+      ansible.builtin.systemd:
+        name: "{{ service_identifier }}"
+        state: stopped
+      register: node_cache_service_stop
+
+    - name: Rename the previous cache directory to the new name
+      ansible.builtin.command:
+        cmd: mv -T {{ node_previous_cache_dir }} {{ node_cache_dir }}
+      changed_when: true
+      notify:
+        - Restart service
