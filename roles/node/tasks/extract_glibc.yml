@@ -1,4 +1,12 @@
 ---
+- name: Create lib directory
+  ansible.builtin.file:
+    path: "{{ node_lib_dir }}"
+    state: directory
+    owner: "{{ service_identifier }}"
+    group: "{{ service_identifier }}"
+    mode: "0755"
+
 - name: Create a tmp directory
   ansible.builtin.file:
     path: "{{ tmp_dir }}/{{ service_identifier }}"
