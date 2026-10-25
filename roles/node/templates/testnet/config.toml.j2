@@ -32,7 +32,7 @@ tx_cost_limit = 80000000
 endpoint_addr = "0.0.0.0:{{ zcash.validator.ports.metrics_port }}"
 
 [mining]
-internal_miner = true
+internal_miner = {{ internal_miner }}
 # Lets other programs take CPU first, which suits a shared machine. On a dedicated server, false is right.
 internal_miner_low_priority = true
 # Change it based on no of cpu on server
