@@ -27,3 +27,16 @@
         - name: Include node role
           ansible.builtin.include_role:
             name: node
+            public: true
+
+  post_tasks:
+    - name: Verify zcash node
+      when: type in allowed_node_types
+      block:
+        - name: Include verify service task
+          ansible.builtin.include_tasks: tasks/verify_service.yml
+          vars:
+            log_file_path: "{{ node_log_file_path }}"
+            health_url: "http://localhost:{{ zcash.validator.ports.rpc_port }}"
+            health_method: POST
+            health_body: {"jsonrpc": "2.0", "method": "getinfo", "params": [], "id": 1}
