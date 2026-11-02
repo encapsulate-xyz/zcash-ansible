@@ -1,9 +1,9 @@
 ---
-- name: Check the host to decommission is confirmed
+- name: Check the hosts to decommission are limited
   ansible.builtin.assert:
     that:
-      - decommission_confirm | default('') == inventory_hostname
-    fail_msg: Run with -e decommission_confirm={{ inventory_hostname }} to decommission this host
+      - ansible_limit is defined
+    fail_msg: Run with --limit <host>[,<host>...] so only the hosts to decommission are touched
 
 - name: Display what will be removed
   ansible.builtin.debug:
