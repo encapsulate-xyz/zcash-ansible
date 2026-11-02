@@ -1,10 +1,4 @@
 ---
-- name: Check the hosts to decommission are limited
-  ansible.builtin.assert:
-    that:
-      - ansible_limit is defined
-    fail_msg: Run with --limit <host>[,<host>...] so only the hosts to decommission are touched
-
 - name: Display what will be removed
   ansible.builtin.debug:
     msg:
@@ -12,7 +6,7 @@
       - "Environment: {{ env }}"
       - "Services, users and /opt directories: {{ decommission_services | join(', ') }}"
       - "Groups: {{ (decommission_services + [project]) | join(', ') }}"
-      - "UFW rules matching: {{ decommission_ufw_comment_regex }}"
+      - "UFW rules: the node role's, from roles/node/vars/ufw_rules.yml"
 
 - name: Confirm decommission details
   ansible.builtin.pause:
@@ -72,5 +66,12 @@
     state: absent
   loop: "{{ decommission_services }}"
 
-- name: Include remove UFW rules task
-  ansible.builtin.include_tasks: remove_ufw_rules.yml
+- name: Include the node's UFW rules vars file
+  ansible.builtin.include_vars:
+    file: roles/node/vars/ufw_rules.yml
+
+- name: Delete the node's UFW rules
+  ansible.builtin.include_tasks: tasks/apply_ufw_rules.yml
+  loop: "{{ node_ufw_rules }}"
+  vars:
+    sunset_delete_rule: true
