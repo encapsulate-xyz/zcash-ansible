@@ -26,3 +26,13 @@
         - name: Include auto-convert role
           ansible.builtin.include_role:
             name: autoconvert
+            public: true
+
+  post_tasks:
+    - name: Verify the auto-convert
+      when: autoconvert | default(false) | bool
+      block:
+        - name: Include verify service task
+          ansible.builtin.include_tasks: tasks/verify_service.yml
+          vars:
+            log_file_path: "{{ autoconvert_log_file_path }}"
