@@ -1,14 +1,16 @@
 ---
-- name: Create project group
+- name: Create project and service groups
   ansible.builtin.group:
-    name: "{{ project }}"
+    name: "{{ item }}"
     state: present
+  loop: "{{ [project, service_identifier] | unique }}"
 
 - name: Create system user with home and nologin
   ansible.builtin.user:
     name: "{{ service_identifier }}"
     system: true
     home: "{{ home }}"
+    group: "{{ service_identifier }}"
     groups: "{{ project }}"
     shell: /usr/sbin/nologin
     createhome: true
