@@ -1,0 +1,10 @@
+---
+# maintains directories and paths
+
+# the services the node and autoconvert roles set up, the auto-convert first since it depends on the node
+decommission_services:
+  - "{{ autoconvert_service_identifier }}"
+  - "{{ node_service_identifier }}"
+
+# every rule tasks/apply_ufw_rules.yml adds is commented "<rule> <env> <project> <type> ..."
+decommission_ufw_comment_regex: "# [a-z]+ {{ env }} {{ project }} {{ type }} "

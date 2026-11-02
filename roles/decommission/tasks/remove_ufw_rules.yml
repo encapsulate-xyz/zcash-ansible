@@ -1,0 +1,16 @@
+---
+- name: Find the UFW rules the node role added
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      ufw status numbered | { grep -E '{{ decommission_ufw_comment_regex }}' || true; } |
+        sed -nE 's/^\[ *([0-9]+)\].*/\1/p' | sort -rn
+    executable: /bin/bash
+  register: decommission_ufw_rule_numbers
+  changed_when: false
+
+- name: Delete the UFW rules
+  ansible.builtin.command:
+    cmd: ufw --force delete {{ item }}
+  loop: "{{ decommission_ufw_rule_numbers.stdout_lines }}"
+  changed_when: true

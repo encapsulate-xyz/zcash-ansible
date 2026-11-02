@@ -1,0 +1,76 @@
+---
+- name: Check the host to decommission is confirmed
+  ansible.builtin.assert:
+    that:
+      - decommission_confirm | default('') == inventory_hostname
+    fail_msg: Run with -e decommission_confirm={{ inventory_hostname }} to decommission this host
+
+- name: Display what will be removed
+  ansible.builtin.debug:
+    msg:
+      - "Decommissioning Host: {{ inventory_hostname }}"
+      - "Environment: {{ env }}"
+      - "Services, users and /opt directories: {{ decommission_services | join(', ') }}"
+      - "Groups: {{ (decommission_services + [project]) | join(', ') }}"
+      - "UFW rules matching: {{ decommission_ufw_comment_regex }}"
+
+- name: Confirm decommission details
+  ansible.builtin.pause:
+    seconds: 10
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+
+- name: Stop and disable the services
+  when: item + '.service' in ansible_facts.services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ decommission_services }}"
+
+- name: Remove the systemd service files
+  ansible.builtin.file:
+    path: /etc/systemd/system/{{ item }}.service
+    state: absent
+  loop: "{{ decommission_services }}"
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Clear the failed state of the removed services
+  ansible.builtin.command:
+    cmd: systemctl reset-failed {{ item }}.service
+  loop: "{{ decommission_services }}"
+  register: decommission_reset_failed
+  changed_when: decommission_reset_failed.rc == 0
+  failed_when: false
+
+- name: Remove the system users and their home directories
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+    remove: true
+  loop: "{{ decommission_services }}"
+
+- name: Remove the service directories
+  ansible.builtin.file:
+    path: /opt/{{ item }}
+    state: absent
+  loop: "{{ decommission_services }}"
+
+- name: Remove the service and project groups
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ decommission_services + [project] }}"
+
+- name: Remove the temporary directories
+  ansible.builtin.file:
+    path: "{{ tmp_dir }}/{{ item }}"
+    state: absent
+  loop: "{{ decommission_services }}"
+
+- name: Include remove UFW rules task
+  ansible.builtin.include_tasks: remove_ufw_rules.yml
