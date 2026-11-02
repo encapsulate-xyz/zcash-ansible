@@ -1,0 +1,7 @@
+---
+# maintains directories and paths
+
+# the services the node and autoconvert roles set up, the auto-convert first since it depends on the node
+decommission_services:
+  - "{{ autoconvert_service_identifier }}"
+  - "{{ node_service_identifier }}"

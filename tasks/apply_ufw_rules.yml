@@ -21,3 +21,4 @@
     from: "{{ from_server_ip.msg | default(item.from) }}"
     to: "{{ item.to | default('any') }}"
     comment: "{{ item.rule }} {{ env }} {{ project }} {{ type }} {{ item.comment }} from {{ item.from }} ip on {{ item.proto }} protocol"
+    delete: "{{ sunset_delete_rule | default(item.delete | default(false)) | bool }}"

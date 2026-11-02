@@ -1,0 +1,24 @@
+---
+- name: Decommission zcash node
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    allowed_node_types: [validator]
+    project: "{{ group_names[0] }}"
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/{{ env }}.yml
+
+  tasks:
+    - name: Decommission the node and its auto-convert
+      when: type in allowed_node_types
+      block:
+        - name: Set service identifiers
+          ansible.builtin.set_fact:
+            node_service_identifier: "{{ project }}{{ '' if type in default_node_types else '-' + type }}"
+            autoconvert_service_identifier: "{{ project }}{{ '' if type in default_node_types else '-' + type }}-autoconvert"
+
+        - name: Include decommission role
+          ansible.builtin.include_role:
+            name: decommission
