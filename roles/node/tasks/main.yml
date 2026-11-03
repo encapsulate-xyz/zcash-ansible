@@ -28,6 +28,7 @@
   ansible.builtin.get_url:
     url: "{{ zcash.validator.source_url }}/{{ zcash.validator.version }}/{{ node_service_default_binary_name }}"
     dest: "{{ node_bin_dir }}/{{ service_identifier }}"
+    checksum: "{{ zcash.validator.checksum }}"
     owner: root
     group: root
     force: true
