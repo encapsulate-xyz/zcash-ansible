@@ -14,6 +14,10 @@ all:
           # Converts its finalizer commission into bonds, 1 cTAZ at a time (setup_autoconvert.yml)
           autoconvert: true
           autoconvert_finalizer: 24e66dea5c0c964aba73d267a91fa21261885653d68377d5351198f29ec1a11c
+          autostake: true
+          # Stakes the wallet's free funds into bonds on itself (setup_autostake.yml)
+          # yamllint disable-line rule:line-length
+          autostake_finalizer_address: zfinv1JOZt6lwMlkq6c9JnqR-iEmGIVlPWg3fVNRGY8p7BoRzBYl5k05kpejkoJhnPIqN1FAzPPwwAQawuUars9MvnsQvKQA7ZP58QSQDXintacS9KwhTUTSt7RelPMGyEgkkF
           cpu_quota: "500%"
           internal_miner: true
           internal_miner_threads: 2

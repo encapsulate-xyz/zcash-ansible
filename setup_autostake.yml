@@ -1,0 +1,37 @@
+---
+- name: Set up the wallet auto-stake
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    project: "{{ group_names[0] }}"
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/{{ env }}.yml
+
+  tasks:
+    - name: Set service identifiers
+      ansible.builtin.set_fact:
+        node_service_identifier: "{{ project }}{{ '' if type in default_node_types else '-' + type }}"
+        service_identifier: "{{ project }}{{ '' if type in default_node_types else '-' + type }}-autostake"
+
+    - name: Set up the auto-stake where it's enabled
+      when: autostake | default(false) | bool
+      block:
+        - name: Include common handlers
+          ansible.builtin.include_role:
+            name: common
+
+        - name: Include auto-stake role
+          ansible.builtin.include_role:
+            name: autostake
+            public: true
+
+  post_tasks:
+    - name: Verify the auto-stake
+      when: autostake | default(false) | bool
+      block:
+        - name: Include verify service task
+          ansible.builtin.include_tasks: tasks/verify_service.yml
+          vars:
+            log_file_path: "{{ autostake_log_file_path }}"

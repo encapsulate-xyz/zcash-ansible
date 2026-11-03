@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# Stakes the {{ node_service_identifier }} wallet's free funds into new bonds on one finalizer, whenever
+# it holds enough, as the systemd service {{ service_identifier }} (setup_autostake.yml).
+# Bond rewards already compound by themselves (the chain adds them to each bond every block); this
+# puts to work what sits in the wallet instead: shielded notes and transparent funds alike, since a
+# bond can be paid from either.
+# Every value below comes from Ansible: edit the variables, not this file.
+#
+# The node's own wallet signs each bond, so no seed is involved: nothing here is secret.
+# It shares the wallet with the auto-convert; the node runs one staking action at a time and
+# answers the other "Another stake in progress", which both scripts retry.
+set -u
+
+RPC=http://127.0.0.1:{{ zcash.validator.ports.rpc_port }}
+FINALIZER={{ autostake_finalizer_address }}
+# zats always left in the wallet (the auto-convert's fees come from it), and zats kept for this fee
+RESERVE={{ zcash.validator.autostake.reserve_zats }}
+FEE_MARGIN={{ zcash.validator.autostake.fee_margin_zats }}
+# bond sizes, powers of 10 zats: each bond is the largest that fits, between these two
+MIN_BOND={{ zcash.validator.autostake.min_bond_zats }}
+MAX_BOND={{ zcash.validator.autostake.max_bond_zats }}
+# consensus takes new bonds only while block_height % WINDOW_PERIOD < WINDOW_LENGTH; the last
+# WINDOW_MARGIN blocks of a window are skipped too, so a bond isn't mined just after it closes
+WINDOW_PERIOD={{ zcash.validator.autostake.window_period_blocks }}
+WINDOW_LENGTH={{ zcash.validator.autostake.window_length_blocks }}
+WINDOW_MARGIN={{ zcash.validator.autostake.window_margin_blocks }}
+# seconds between checks, and before giving up waiting for a bond to be mined
+CHECK_EVERY={{ zcash.validator.autostake.check_every_seconds }}
+CONFIRM_TIMEOUT={{ zcash.validator.autostake.confirm_timeout_seconds }}
+# 1: check everything, never stake
+DRY_RUN={{ '1' if autostake_dry_run | default(false) | bool else '0' }}
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
+ctaz() { awk -v z="$1" 'BEGIN { printf "%.8f", z / 1e8 }' | sed -E 's/0+$//; s/\.$//'; }
+rpc() { # method [params-json]
+  jq -nc --arg m "$1" --argjson p "${2:-[]}" '{jsonrpc:"2.0",id:1,method:$m,params:$p}' |
+    curl -s -m 180 -X POST -H 'Content-Type: application/json' "$RPC" -d @-
+}
+tip() { rpc getblockcount | jq -r '.result // empty' 2>/dev/null; }
+available() { # shielded spendable + transparent: a bond can draw on both
+  rpc wallet_spendable_funds | jq -r 'if .result then .result.spendable_zats + .result.unshielded_zats else empty end' 2>/dev/null
+}
+positions() {
+  local n
+  n=$(rpc wallet_staking_positions | jq -r '[(.result.active // {})[] | length] | add // 0' 2>/dev/null)
+  echo "${n:-0}"
+}
+
+# The largest power of 10 zats, from MIN_BOND up to MAX_BOND, that fits in $1; nothing if MIN_BOND doesn't
+bond_size() {
+  local free=$1 b=$MIN_BOND
+  ((free >= b)) || return 1
+  while ((b * 10 <= free && b * 10 <= MAX_BOND)); do b=$((b * 10)); done
+  echo "$b"
+}
+
+# Sends one bond and prints a result code: ok, busy or nofunds, or the node's error message
+stake() {
+  jq -nc --arg f "$FINALIZER" --argjson a "$1" \
+    '{jsonrpc:"2.0",id:1,method:"wallet_staking_action",params:[{CreateNewDelegationBond:{amount_zats:$a,target_finalizer:$f}}]}' |
+    curl -s -m 180 -X POST -H 'Content-Type: application/json' "$RPC" -d @- |
+    jq -r 'if has("result") then "ok"
+      else (.error.message // "no answer") as $m
+        | if ($m | test("Another stake in progress")) then "busy"
+          elif ($m | test("failed to create staking transaction")) then "nofunds"
+          elif ($m | test("failed to build staking action")) then "notsent"
+          else $m end end' 2>/dev/null || echo "no answer"
+}
+
+# --- checks before starting ---
+for t in jq curl awk; do command -v "$t" >/dev/null || { echo "needs $t" >&2; exit 1; }; done
+case "$FINALIZER" in
+  zfinv1*) ;;
+  *) echo "the finalizer address must be a zfinv1… address, not $FINALIZER" >&2; exit 1 ;;
+esac
+
+trap 'log "stopped"; exit 0' INT TERM
+log "auto-stake: wallet funds above $(ctaz "$RESERVE") cTAZ into bonds of $(ctaz "$MIN_BOND")-$(ctaz "$MAX_BOND") cTAZ on ${FINALIZER:0:16}… via $RPC$([ "$DRY_RUN" = 1 ] && echo ' (dry run: nothing is sent)')"
+last_seen=""
+
+while true; do
+  h=$(tip)
+  if [ -z "$h" ]; then
+    log "node not answering; retrying in ${CHECK_EVERY}s"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  # the bond lands in the next block at the earliest
+  in_window=$(((h + 1) % WINDOW_PERIOD))
+  if ((in_window >= WINDOW_LENGTH - WINDOW_MARGIN)); then
+    opens=$(((h + 1) / WINDOW_PERIOD * WINDOW_PERIOD + WINDOW_PERIOD))
+    [ "window$opens" != "$last_seen" ] && log "block $h: outside the staking window; the next one opens at block $opens ($((opens - h - 1)) blocks)"
+    last_seen="window$opens"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  avail=$(available)
+  if [ -z "$avail" ]; then
+    log "wallet not ready yet (still syncing?); retrying in ${CHECK_EVERY}s"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+  if ! amount=$(bond_size $((avail - RESERVE - FEE_MARGIN))); then
+    [ "$avail" != "$last_seen" ] && log "block $h: $(ctaz "$avail") cTAZ in the wallet, waiting for $(ctaz $((RESERVE + FEE_MARGIN + MIN_BOND))) to stake"
+    last_seen=$avail
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  before=$(positions)
+  log "block $h: $(ctaz "$avail") cTAZ in the wallet, staking $(ctaz "$amount") cTAZ (bonds so far: $before)"
+  if [ "$DRY_RUN" = 1 ]; then
+    log "dry run: not sending"
+    sleep "$CHECK_EVERY"
+    continue
+  fi
+
+  result=$(stake "$amount")
+  case $result in
+    ok) ;;
+    busy) log "the wallet is busy with another staking action; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+    nofunds) log "the wallet couldn't fund the bond (funds not spendable yet?); retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+    notsent) log "the node built the bond but the network refused it (the reason is in the node's log: grep 'failed to send transaction'); retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+    *) log "bond not sent: $result; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
+  esac
+
+  # Wait for it to be mined before staking again. The auto-convert's bonds count here too, which at
+  # worst ends the wait early: the next bond then can't be built yet and is retried.
+  log "bond sent; waiting for it to be mined"
+  waited=0
+  while (($(positions) <= before)); do
+    if ((waited >= CONFIRM_TIMEOUT)); then
+      log "not seen after $((CONFIRM_TIMEOUT / 60)) min; checking the wallet again"
+      break
+    fi
+    sleep 20
+    waited=$((waited + 20))
+  done
+  ((waited < CONFIRM_TIMEOUT)) && log "bond confirmed: $(positions) bonds in total"
+  last_seen=""
+done
