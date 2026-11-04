@@ -1,0 +1,14 @@
+---
+# maintains directories and paths
+autostake_home_dir: /opt/{{ service_identifier }}
+
+autostake_bin_dir: "{{ autostake_home_dir }}/bin"
+autostake_log_dir: "{{ autostake_home_dir }}/log"
+
+autostake_directories:
+  - "{{ autostake_home_dir }}"
+  - "{{ autostake_bin_dir }}"
+  - "{{ autostake_log_dir }}"
+
+autostake_log_file_path: "{{ autostake_log_dir }}/{{ service_identifier }}.log"
+autostake_script_file_path: "{{ autostake_bin_dir }}/{{ autostake_script_file_name }}"

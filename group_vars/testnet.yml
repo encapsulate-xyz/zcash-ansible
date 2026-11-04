@@ -19,3 +19,15 @@ zcash:
       fee_margin_zats: 100000         # 0.001 cTAZ the wallet needs for the fee
       check_every_seconds: 60
       confirm_timeout_seconds: 1800   # stop waiting for a conversion to be mined after 30 min
+    # setup_autostake.yml: stakes the wallet's free funds into new bonds
+    autostake:
+      reserve_zats: 100000000         # 1 cTAZ always left in the wallet, for the auto-convert's fees
+      fee_margin_zats: 100000         # 0.001 cTAZ kept for each bond's fee
+      min_bond_zats: 100000000        # 1 cTAZ: smallest bond (bonds must be a power of 10 zats)
+      max_bond_zats: 10000000000      # 100 cTAZ: largest bond, so funds can be unbonded in parts
+      # new bonds are only valid while block_height % 10368 < 3456 (consensus): one day in three
+      window_period_blocks: 10368
+      window_length_blocks: 3456
+      window_margin_blocks: 20        # skip the window's last 20 blocks
+      check_every_seconds: 60
+      confirm_timeout_seconds: 1800   # stop waiting for a bond to be mined after 30 min

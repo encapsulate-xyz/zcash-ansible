@@ -24,6 +24,15 @@ Our finalizer, Encapsulate, runs on these playbooks. You can see it on Holdfast,
 - It refuses to start if the node sets `explicit_bft_key_seed`, since the finalizer key then doesn't come from `secret.seed`.
 - `-e autoconvert_dry_run=true` checks everything and sends nothing.
 
+`setup_autostake.yml` (role `autostake`), only on hosts with `autostake: true`:
+
+- A systemd service, `<service>-autostake`. Whenever the node's wallet holds more than a reserve (1 cTAZ, for the auto-convert's fees), it stakes the rest into new bonds on one finalizer, and waits for each bond to be mined before sending the next. Shielded and transparent funds both count, since a bond can be paid from either.
+- Consensus only takes new bonds inside the staking window (`block_height % 10368 < 3456`, one day in three), so outside it the script waits and logs the block the next window opens at. The auto-convert has no such limit.
+- Bonds must be a power of 10 zats, so each bond is the largest that fits, from 1 to 100 cTAZ (`group_vars/testnet.yml`). 888 cTAZ becomes 8 bonds of 100, 8 of 10 and 8 of 1.
+- Bond rewards already compound by themselves (the chain adds them to each bond), so this is for what the wallet receives: transparent funds, mining or anything sent to it.
+- The node's own wallet signs each bond, so it needs no seed. systemd still keeps it to the node's RPC on localhost.
+- `-e autostake_dry_run=true` checks everything and sends nothing.
+
 ## Layout
 
 ```
@@ -38,10 +47,12 @@ Our finalizer, Encapsulate, runs on these playbooks. You can see it on Holdfast,
 ├── roles/
 │   ├── node/                   # zebrad, config, glibc, systemd
 │   ├── autoconvert/            # commission into bonds
+│   ├── autostake/              # wallet funds into bonds
 │   └── common/                 # systemd handlers
 ├── tasks/                      # ufw, users and directories, Vault secrets
 ├── setup_node.yml
-└── setup_autoconvert.yml
+├── setup_autoconvert.yml
+└── setup_autostake.yml
 ```
 
 ## Requirements
@@ -50,7 +61,7 @@ Our finalizer, Encapsulate, runs on these playbooks. You can see it on Holdfast,
   `ansible-galaxy collection install -r collections/requirements.yml`
 - Ubuntu hosts (the playbooks use `apt`, `ufw` and `dpkg-deb`).
 - SSH as `ansible` with the key `~/.ssh/ansible` on port 8192 (`ansible.cfg`, `group_vars/all.yml`). Change these to match your servers.
-- `curl` and `jq` on a host that runs the auto-convert.
+- `curl` and `jq` on a host that runs the auto-convert or the auto-stake.
 
 ## Configuration
 
@@ -65,6 +76,8 @@ Per host, in `inventory/testnet.yml`:
 | `rpc_tailnet` | `true` binds the RPC on every interface so other machines can reach it over Tailscale. ufw's default deny still keeps it closed on the public interface. Otherwise the RPC listens on 127.0.0.1 only |
 | `autoconvert` | `true` to run the auto-convert on this host |
 | `autoconvert_finalizer` | the finalizer's public key, 64 hex characters, as `get_tfl_roster_zec` shows it |
+| `autostake` | `true` to run the auto-stake on this host |
+| `autostake_finalizer_address` | the finalizer to stake to, as its `zfinv1…` address (134 characters). A finalizer node logs its own as `finalizer address: zfinv1…` |
 
 Shared settings:
 
@@ -92,6 +105,9 @@ ansible-playbook setup_node.yml --limit <host> --ask-vault-pass
 
 # the auto-convert on the finalizer
 VAULT_TOKEN=... ansible-playbook setup_autoconvert.yml --limit <host> -e fetch_vault_secrets=true --ask-vault-pass
+
+# the auto-stake (no Vault needed); try it first with -e autostake_dry_run=true
+ansible-playbook setup_autostake.yml --limit <host>
 ```
 
 `setup_node.yml` shows the host, environment and node type, then pauses for 40 s and again for 20 s, so you can stop it with Ctrl-C if it's the wrong host. A changed config, binary or library restarts the node.
