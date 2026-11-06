@@ -25,10 +25,10 @@ all:
         ts.i2.validator.zcash.testnet.encapsulate.xyz:
           type: validator
           fetch_vault_secrets: false
-          cpu_quota: "3400%"
+          cpu_quota: "2400%"
           internal_miner: true
-          internal_miner_threads: 32
-          parallel_cpu_threads: 32
+          internal_miner_threads: 22
+          parallel_cpu_threads: 22
         ts.i5.validator.zcash.testnet.encapsulate.xyz:
           type: validator
           fetch_vault_secrets: false
