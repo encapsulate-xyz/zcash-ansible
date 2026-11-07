@@ -6,7 +6,8 @@ node_config_file_name: config.toml
 node_secret_seed_file_name: secret.seed
 
 # binary names
-node_service_default_binary_name: "crosslink_{{ zcash.validator.version }}_ubuntu"
+# the asset name has no release-candidate suffix: tag v17_rc1 ships crosslink_v17_ubuntu
+node_service_default_binary_name: "crosslink_{{ zcash.validator.version | regex_replace('_rc[0-9]+$', '') }}_ubuntu"
 
 # glibc file names
 node_glibc_package_file_name: "libc6_{{ zcash.validator.glibc.package_version }}_{{ system_architecture }}.deb"

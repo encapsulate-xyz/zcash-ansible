@@ -1,6 +1,6 @@
 # zcash-ansible
 
-The Ansible playbooks Encapsulate uses to run Zcash Crosslink nodes and finalizers on the Crosslink v16 Feature Net (`crosslink_featurenet_20260929_staking3d`), and a service that converts a finalizer's commission into bonds.
+The Ansible playbooks Encapsulate uses to run Zcash Crosslink nodes and finalizers on the Crosslink v17 Feature Net (`crosslink_featurenet_20260929_staking3d`), and a service that converts a finalizer's commission into bonds.
 
 Our finalizer, Encapsulate, runs on these playbooks. You can see it on Holdfast, our explorer: https://holdfast.crosslink.encapsulate.xyz
 
