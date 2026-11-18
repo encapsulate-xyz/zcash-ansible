@@ -5,6 +5,15 @@ node_ufw_rules:
     rule: allow
     from: any
     comment: p2p_port
+    # v18 turns the legacy Zcash network off by default, so this port is unused: removes the old rule from hosts
+    delete: true
+
+  # Crosslink's own peer network (v18+): PoW sync, BFT and transaction relay
+  - port: "{{ zcash.validator.ports.network_local_port }}"
+    proto: udp
+    rule: allow
+    from: any
+    comment: network_local_port
 
   - port: "{{ zcash.validator.ports.metrics_port }}"
     proto: tcp
