@@ -1,0 +1,50 @@
+---
+# Replaces a node's chain state with a snapshot from https://github.com/0xking-sol/crosslink-snapshots
+# Run setup_node.yml first: the snapshot is made with the release in group_vars/testnet.yml, and this checks the
+# host runs that binary. secret.seed, the wallet and everything else in the cache directory are left alone.
+#   ansible-playbook -i inventory/testnet.yml snapshot_sync.yml -e env=testnet --limit <host>
+#   -e snapshot_sync_tag=<release tag>   a given snapshot instead of the latest
+- name: Snapshot sync zcash node
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    allowed_node_types: [validator]
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/vault.yml
+    - group_vars/{{ env }}.yml
+
+  pre_tasks:
+    - name: Setup Pre Tasks
+      when: type in allowed_node_types
+      block:
+        - name: Include environment setup tasks
+          ansible.builtin.include_tasks: tasks/setup_environment.yml
+
+  tasks:
+    - name: Run snapshot_sync role
+      when: type in allowed_node_types
+      block:
+        - name: Include common handlers
+          ansible.builtin.include_role:
+            name: common
+        - name: Include snapshot_sync role
+          ansible.builtin.include_role:
+            name: snapshot_sync
+            public: true
+
+  post_tasks:
+    - name: Verify zcash node
+      when: type in allowed_node_types
+      block:
+        - name: Include verify service task
+          ansible.builtin.include_tasks: tasks/verify_service.yml
+          vars:
+            log_file_path: "{{ snapshot_sync_log_file_path }}"
+            health_url: "http://localhost:{{ zcash.validator.ports.rpc_port }}"
+            health_method: POST
+            health_body: {"jsonrpc": "2.0", "method": "getinfo", "params": [], "id": 1}
+
+        - name: Include verify chain task
+          ansible.builtin.include_tasks: roles/snapshot_sync/tasks/verify_chain.yml

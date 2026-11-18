@@ -1,0 +1,259 @@
+---
+# One release for every host, looked up once, so a snapshot published during the run doesn't mix two
+- name: Look up the snapshot release
+  ansible.builtin.uri:
+    url: >-
+      https://api.github.com/repos/{{ zcash.validator.snapshot.repo }}/releases/{{
+      'latest' if snapshot_sync_tag == 'latest' else 'tags/' ~ snapshot_sync_tag }}
+    headers:
+      Accept: application/vnd.github+json
+    timeout: 30
+  register: snapshot_sync_release
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Fetch the snapshot description
+  ansible.builtin.uri:
+    url: >-
+      {{ (snapshot_sync_release.json.assets | selectattr('name', 'equalto', snapshot_sync_info_file_name)
+      | first).browser_download_url }}
+    return_content: true
+    timeout: 60
+  register: snapshot_sync_info_response
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Set snapshot facts
+  ansible.builtin.set_fact:
+    snapshot_sync_tag_name: "{{ snapshot_sync_release.json.tag_name }}"
+    snapshot_sync_archive: >-
+      {{ snapshot_sync_release.json.assets | selectattr('name', 'equalto', snapshot_sync_archive_file_name) | first }}
+    snapshot_sync_info: "{{ snapshot_sync_info_response.content | from_json }}"
+  run_once: true
+
+- name: Check the snapshot fits this network and release
+  ansible.builtin.assert:
+    that:
+      - snapshot_sync_info.network == zcash.validator.cache_dir_name
+      - (snapshot_sync_info.zebrad | split)[0] == zcash.validator.version
+      - snapshot_sync_archive.digest == 'sha256:' ~ snapshot_sync_info.sha256
+      - snapshot_sync_archive.size == snapshot_sync_info.bytes | int
+    fail_msg: >-
+      {{ snapshot_sync_tag_name }} is for {{ snapshot_sync_info.network }} made with zebrad {{ snapshot_sync_info.zebrad }},
+      archive {{ snapshot_sync_archive.digest }}; we run {{ zcash.validator.cache_dir_name }} on {{ zcash.validator.version }}
+    quiet: true
+  run_once: true
+
+- name: Display the snapshot
+  ansible.builtin.debug:
+    msg:
+      - "Snapshot: {{ snapshot_sync_tag_name }}, made {{ snapshot_sync_info.created_utc }} with zebrad {{ snapshot_sync_info.zebrad }}"
+      - "Height {{ snapshot_sync_info.height }}, finalized {{ snapshot_sync_info.finalized_height }} ({{ snapshot_sync_info.finalized_hash }})"
+      - "Checked against: {{ snapshot_sync_info.checked_against | default('not stated') }}"
+  run_once: true
+
+# the snapshot's database only fits the release it was made with
+- name: Get the installed binary
+  ansible.builtin.stat:
+    path: "{{ snapshot_sync_bin_dir }}/{{ service_identifier }}"
+    checksum_algorithm: sha256
+  register: snapshot_sync_binary
+
+- name: Check the host runs the pinned release
+  ansible.builtin.assert:
+    that: snapshot_sync_binary.stat.checksum | default('') == zcash.validator.checksum.split(':')[-1]
+    fail_msg: "{{ snapshot_sync_bin_dir }}/{{ service_identifier }} isn't {{ zcash.validator.version }}: run setup_node.yml first"
+    quiet: true
+
+- name: Get the cache directory
+  ansible.builtin.stat:
+    path: "{{ snapshot_sync_cache_dir }}"
+  register: snapshot_sync_cache
+
+- name: Check the cache directory exists
+  ansible.builtin.assert:
+    that: snapshot_sync_cache.stat.isdir | default(false)
+    fail_msg: "No {{ snapshot_sync_cache_dir }}: run setup_node.yml first"
+    quiet: true
+
+- name: Install zstd
+  ansible.builtin.apt:
+    name: zstd
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# the old state stays until the swap, so the download and the unpacked snapshot both need room next to it
+- name: Get the free space on the data disk
+  ansible.builtin.command: df -k --output=avail {{ snapshot_sync_data_dir }}
+  register: snapshot_sync_free_space
+  changed_when: false
+
+- name: Check there is room for the snapshot
+  vars:
+    snapshot_sync_free_bytes: "{{ snapshot_sync_free_space.stdout_lines[-1] | trim | int * 1024 }}"
+    snapshot_sync_needed_bytes: "{{ snapshot_sync_info.bytes | int + snapshot_sync_info.unpacked_bytes | int + 1073741824 }}"
+  ansible.builtin.assert:
+    that: snapshot_sync_free_bytes | int > snapshot_sync_needed_bytes | int
+    fail_msg: >-
+      {{ snapshot_sync_data_dir }} has {{ (snapshot_sync_free_bytes | int / 1073741824) | round(1) }} GB free,
+      needs {{ (snapshot_sync_needed_bytes | int / 1073741824) | round(1) }} GB
+    quiet: true
+
+# The snapshot never touches secret.seed (the finalizer key), but keep a copy outside the cache directory anyway
+- name: Get the secret seed
+  ansible.builtin.stat:
+    path: "{{ snapshot_sync_secret_seed_file_path }}"
+    checksum_algorithm: sha256
+  register: snapshot_sync_seed
+
+- name: Back up the secret seed
+  when: snapshot_sync_seed.stat.exists
+  ansible.builtin.copy:
+    src: "{{ snapshot_sync_secret_seed_file_path }}"
+    dest: "{{ snapshot_sync_data_dir }}/secret.seed.bak-{{ snapshot_sync_tag_name }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+
+- name: Create the download directory
+  ansible.builtin.file:
+    path: "{{ snapshot_sync_download_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download the snapshot
+  ansible.builtin.get_url:
+    url: "{{ snapshot_sync_archive.browser_download_url }}"
+    dest: "{{ snapshot_sync_download_dir }}/{{ snapshot_sync_archive_file_name }}"
+    checksum: "{{ snapshot_sync_archive.digest }}"
+    timeout: 120
+    owner: root
+    group: root
+    mode: "0644"
+  register: snapshot_sync_download
+  retries: 3
+  delay: 10
+  until: snapshot_sync_download is succeeded
+
+# The same checks as the repo's restore.sh: only the two chain folders, plain files and folders, no '..'
+- name: Check the snapshot's contents
+  ansible.builtin.shell: |
+    set -euo pipefail
+    f={{ (snapshot_sync_download_dir ~ '/' ~ snapshot_sync_archive_file_name) | quote }}
+    net={{ zcash.validator.cache_dir_name | quote }}
+    paths=$(zstd -dc "$f" | tar -tf -)
+    bad=$(grep -v -E "^$net/(state|non_finalized_state)(/[A-Za-z0-9._-]+)*/?\$" <<< "$paths" || true)
+    [ -z "$bad" ] || { echo "unexpected paths:"; head -5 <<< "$bad"; exit 1; }
+    dots=$(grep -E '(^|/)\.\.(/|$)' <<< "$paths" || true)
+    [ -z "$dots" ] || { echo "'..' paths:"; head -5 <<< "$dots"; exit 1; }
+    special=$(zstd -dc "$f" | tar -tvf - | grep -v -E '^[-d]' || true)
+    [ -z "$special" ] || { echo "links or special files:"; head -5 <<< "$special"; exit 1; }
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Remove a staging directory left by an earlier run
+  ansible.builtin.file:
+    path: "{{ snapshot_sync_staging_dir }}"
+    state: absent
+
+- name: Create the staging directory
+  ansible.builtin.file:
+    path: "{{ snapshot_sync_staging_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# while the node still runs: a failed unpack leaves its data as it was
+- name: Unpack the snapshot
+  ansible.builtin.shell: |
+    set -o pipefail
+    zstd -dc {{ (snapshot_sync_download_dir ~ '/' ~ snapshot_sync_archive_file_name) | quote }} |
+      tar -xf - --no-same-owner -C {{ snapshot_sync_staging_dir | quote }}
+  args:
+    executable: /bin/bash
+  changed_when: true
+
+- name: Get the unpacked database
+  ansible.builtin.stat:
+    path: >-
+      {{ snapshot_sync_staging_dir }}/{{ zcash.validator.cache_dir_name }}/state/v{{
+      snapshot_sync_info.db_format.split('.')[0] }}/{{ snapshot_sync_db_network_dir_name }}/CURRENT
+  register: snapshot_sync_unpacked_db
+
+- name: Check the snapshot unpacked
+  ansible.builtin.assert:
+    that: snapshot_sync_unpacked_db.stat.exists
+    fail_msg: "The unpacked snapshot has no database at {{ snapshot_sync_unpacked_db.stat.path | default('state/') }}"
+    quiet: true
+
+# BEGIN swap: the node is down from here until the start below
+- name: Stop service
+  ansible.builtin.systemd:
+    name: "{{ service_identifier }}"
+    state: stopped
+
+- name: Delete the old chain state
+  ansible.builtin.file:
+    path: "{{ snapshot_sync_cache_dir }}/{{ item }}"
+    state: absent
+  loop: "{{ snapshot_sync_state_dirs }}"
+
+- name: Move the snapshot's chain state in
+  ansible.builtin.command:
+    cmd: >-
+      mv -T {{ snapshot_sync_staging_dir }}/{{ zcash.validator.cache_dir_name }}/{{ item }}
+      {{ snapshot_sync_cache_dir }}/{{ item }}
+  loop: "{{ snapshot_sync_state_dirs }}"
+  changed_when: true
+
+- name: Set ownership of the chain state
+  ansible.builtin.file:
+    path: "{{ snapshot_sync_cache_dir }}/{{ item }}"
+    owner: "{{ snapshot_sync_cache.stat.pw_name }}"
+    group: "{{ snapshot_sync_cache.stat.gr_name }}"
+    recurse: true
+  loop: "{{ snapshot_sync_state_dirs }}"
+
+- name: Get the secret seed again
+  ansible.builtin.stat:
+    path: "{{ snapshot_sync_secret_seed_file_path }}"
+    checksum_algorithm: sha256
+  register: snapshot_sync_seed_after
+
+- name: Check the secret seed is unchanged
+  ansible.builtin.assert:
+    that: snapshot_sync_seed_after.stat.checksum | default('') == snapshot_sync_seed.stat.checksum | default('')
+    fail_msg: >-
+      {{ snapshot_sync_secret_seed_file_path }} changed: the node is still stopped. The original is in
+      {{ snapshot_sync_data_dir }}/secret.seed.bak-{{ snapshot_sync_tag_name }}
+    quiet: true
+
+# the chain check after the start reads only the log written from here on
+- name: Get the log size
+  ansible.builtin.stat:
+    path: "{{ snapshot_sync_log_file_path }}"
+  register: snapshot_sync_log_before
+
+- name: Start service
+  ansible.builtin.systemd:
+    name: "{{ service_identifier }}"
+    state: started
+    enabled: true
+# END swap
+
+- name: Remove the staging and download directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ snapshot_sync_staging_dir }}"
+    - "{{ snapshot_sync_download_dir }}"

@@ -1,0 +1,51 @@
+---
+# After a snapshot sync: the node loaded the snapshot, and its BFT finality moves on with the rest of the network
+# (a node on a fork stays at an old finalized height while its peers move on)
+- name: Check the node has the snapshot's finalized block
+  ansible.builtin.uri:
+    url: "http://localhost:{{ zcash.validator.ports.rpc_port }}"
+    method: POST
+    # one expression, so the height goes out as a number
+    body: "{{ {'jsonrpc': '2.0', 'id': 1, 'method': 'getblockhash', 'params': [snapshot_sync_info.finalized_height | int]} }}"
+    body_format: json
+  register: snapshot_sync_finalized_block
+  until: snapshot_sync_finalized_block.json.result | default('') == snapshot_sync_info.finalized_hash
+  retries: 12
+  delay: 10
+
+# zebrad logs "tip height: Some(T), finalized height: Some(F), peers: ["id@F/T", ...]" every 2 seconds
+- name: Wait for finality to catch up with the peers
+  ansible.builtin.shell: |
+    set -o pipefail
+    line=$(tail -c +{{ (snapshot_sync_log_before.stat.size | default(0)) + 1 }} {{ snapshot_sync_log_file_path | quote }} |
+      grep 'new_network: tip height' | tail -1 || true)
+    ours=$(grep -oE 'finalized height: Some\([0-9]+\)' <<< "$line" | grep -oE '[0-9]+' || true)
+    median=$(grep -oE '@[0-9]+/' <<< "$line" | tr -d '@/' | sort -n | awk '{a[NR]=$1} END {if (NR) print a[int((NR+1)/2)]}')
+    peers=$(grep -oE '@[0-9]+/' <<< "$line" | wc -l)
+    echo "${ours:-0} ${median:-0} $peers"
+  args:
+    executable: /bin/bash
+  register: snapshot_sync_finality
+  changed_when: false
+  until: snapshot_sync_finality_caught_up | bool
+  retries: 60
+  delay: 15
+  # checked below, after showing the heights
+  ignore_errors: true
+
+- name: Display finality
+  vars:
+    snapshot_sync_heights: "{{ snapshot_sync_finality_heights }}"
+  ansible.builtin.debug:
+    msg: >-
+      Finalized height {{ snapshot_sync_heights[0] }}, peers' median {{ snapshot_sync_heights[1] }}
+      ({{ snapshot_sync_heights[2] }} peers), snapshot {{ snapshot_sync_info.finalized_height }}
+
+- name: Check finality caught up with the peers
+  ansible.builtin.assert:
+    that: snapshot_sync_finality_caught_up | bool
+    fail_msg: >-
+      After 15 minutes this node's finality hasn't caught up with its peers. Either it is still syncing (run the
+      check again later), or the snapshot is on another chain than the peers: then sync from genesis instead
+      (delete state/ and non_finalized_state/ with the node stopped) or use another snapshot (-e snapshot_sync_tag=...).
+    quiet: true
