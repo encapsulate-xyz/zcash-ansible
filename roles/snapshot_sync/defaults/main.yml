@@ -1,0 +1,18 @@
+---
+# maintains directories and paths, the same as the node role's
+snapshot_sync_home_dir: /opt/{{ service_identifier }}
+
+snapshot_sync_bin_dir: "{{ snapshot_sync_home_dir }}/bin"
+snapshot_sync_data_dir: "{{ snapshot_sync_home_dir }}/data"
+snapshot_sync_log_file_path: "{{ snapshot_sync_home_dir }}/log/{{ service_identifier }}.log"
+
+snapshot_sync_cache_dir: "{{ snapshot_sync_data_dir }}/{{ zcash.validator.cache_dir_name }}"
+snapshot_sync_secret_seed_file_path: "{{ snapshot_sync_cache_dir }}/secret.seed"
+
+# the download sits on the same disk as the cache directory, and the archive is unpacked inside it so the swap is
+# a rename
+snapshot_sync_download_dir: "{{ snapshot_sync_data_dir }}/.snapshot-download"
+snapshot_sync_staging_dir: "{{ snapshot_sync_cache_dir }}/.restore-snapshot"
+
+# latest, or a release tag such as v18-20261118-055742-h170003 (the repo keeps the last 3)
+snapshot_sync_tag: latest

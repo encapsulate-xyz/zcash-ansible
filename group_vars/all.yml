@@ -24,6 +24,9 @@ zcash:
       source_url: https://archive.ubuntu.com/ubuntu/pool/main/g/glibc
       # keeps every published build, but is slow (5-60s before the download starts): only used when the mirror fails
       fallback_source_url: https://launchpad.net/ubuntu/+archive/primary/+files
+    # snapshot_sync.yml: daily chain state snapshots, made with the latest release
+    snapshot:
+      repo: 0xking-sol/crosslink-snapshots
     ports:
       p2p_port: 8788
       metrics_port: 8789

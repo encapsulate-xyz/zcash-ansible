@@ -1,0 +1,21 @@
+---
+# maintains file names, and anything which is not a directory or path
+
+snapshot_sync_archive_file_name: crosslink-v15-state.tar.zst
+snapshot_sync_info_file_name: crosslink-v15-state.json
+
+# the only folders a snapshot holds and replaces
+snapshot_sync_state_dirs:
+  - state
+  - non_finalized_state
+
+# where a snapshot's database sits under state/v<db version>/ (restore.sh in the snapshot repo checks the same)
+snapshot_sync_db_network_dir_name: unknowntestnet
+
+# verify_chain.yml, from the "<ours> <peers' median> <peer count>" finalized heights it reads from the log: caught up
+# means it has peers, its finality moved past the snapshot's, and it is within 20 blocks of the peers' median
+snapshot_sync_finality_heights: "{{ (snapshot_sync_finality.stdout | default('0 0 0')).split() | map('int') | list }}"
+snapshot_sync_finality_caught_up: >-
+  {{ snapshot_sync_finality_heights[2] > 0
+  and snapshot_sync_finality_heights[0] > snapshot_sync_info.finalized_height | int
+  and snapshot_sync_finality_heights[0] >= snapshot_sync_finality_heights[1] - 20 }}
