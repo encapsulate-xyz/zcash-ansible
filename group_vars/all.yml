@@ -20,7 +20,8 @@ zcash:
   validator:
     source_url: https://github.com/ShieldedLabs/crosslink_monolith/releases/download
     glibc:
-      source_url: https://archive.ubuntu.com/ubuntu/pool/main/g/glibc
+      # Launchpad keeps every published build; archive.ubuntu.com/pool deletes superseded ones (404)
+      source_url: https://launchpad.net/ubuntu/+archive/primary/+files
     ports:
       p2p_port: 8788
       metrics_port: 8789
