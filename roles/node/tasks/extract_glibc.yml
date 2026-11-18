@@ -16,13 +16,31 @@
     mode: "0755"
 
 - name: Download glibc package
-  ansible.builtin.get_url:
-    url: "{{ zcash.validator.glibc.source_url }}/{{ node_glibc_package_file_name }}"
-    dest: "{{ tmp_dir }}/{{ service_identifier }}/{{ node_glibc_package_file_name }}"
-    checksum: "{{ zcash.validator.glibc.checksum }}"
-    owner: root
-    group: root
-    mode: "0644"
+  block:
+    - name: Download glibc package from the Ubuntu mirror
+      ansible.builtin.get_url:
+        url: "{{ zcash.validator.glibc.source_url }}/{{ node_glibc_package_file_name }}"
+        dest: "{{ tmp_dir }}/{{ service_identifier }}/{{ node_glibc_package_file_name }}"
+        checksum: "{{ zcash.validator.glibc.checksum }}"
+        timeout: 60
+        owner: root
+        group: root
+        mode: "0644"
+  rescue:
+    # the mirror deletes superseded builds; Launchpad keeps them but is slow and sometimes returns 503
+    - name: Download glibc package from Launchpad
+      ansible.builtin.get_url:
+        url: "{{ zcash.validator.glibc.fallback_source_url }}/{{ node_glibc_package_file_name }}"
+        dest: "{{ tmp_dir }}/{{ service_identifier }}/{{ node_glibc_package_file_name }}"
+        checksum: "{{ zcash.validator.glibc.checksum }}"
+        timeout: 120
+        owner: root
+        group: root
+        mode: "0644"
+      register: node_glibc_fallback_download
+      retries: 3
+      delay: 10
+      until: node_glibc_fallback_download is succeeded
 
 - name: Extract glibc package
   ansible.builtin.command:

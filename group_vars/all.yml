@@ -20,8 +20,10 @@ zcash:
   validator:
     source_url: https://github.com/ShieldedLabs/crosslink_monolith/releases/download
     glibc:
-      # Launchpad keeps every published build; archive.ubuntu.com/pool deletes superseded ones (404)
-      source_url: https://launchpad.net/ubuntu/+archive/primary/+files
+      # fast mirror, but it deletes superseded builds (404 once Ubuntu ships a newer one)
+      source_url: https://archive.ubuntu.com/ubuntu/pool/main/g/glibc
+      # keeps every published build, but is slow (5-60s before the download starts): only used when the mirror fails
+      fallback_source_url: https://launchpad.net/ubuntu/+archive/primary/+files
     ports:
       p2p_port: 8788
       metrics_port: 8789
