@@ -50,15 +50,38 @@
       {{ tmp_dir }}/{{ service_identifier }}
     creates: "{{ extracted_dir }}/{{ node_glibc_loader_file_name }}"
 
+- name: Find the extracted lib files
+  ansible.builtin.find:
+    paths: "{{ extracted_dir }}"
+    recurse: true
+    file_type: any
+  register: node_glibc_files
+
+- name: Create lib subdirectories
+  ansible.builtin.file:
+    path: "{{ node_lib_dir }}/{{ item.path | relpath(extracted_dir) }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ node_glibc_files.files | selectattr('isdir') | list }}"
+  loop_control:
+    label: "{{ item.path | relpath(extracted_dir) }}"
+
+# one file at a time: a single-file copy writes a temp file and renames it over the old one, so the running node keeps
+# its old loader until the restart. A directory copy writes in place and fails with "Text file busy" on the loader.
 - name: Copy lib files
   ansible.builtin.copy:
-    src: "{{ extracted_dir }}/"
-    dest: "{{ node_lib_dir }}"
+    src: "{{ item.path }}"
+    dest: "{{ node_lib_dir }}/{{ item.path | relpath(extracted_dir) }}"
     remote_src: true
     owner: root
     group: root
     force: true
     mode: "0755"
+  loop: "{{ node_glibc_files.files | rejectattr('isdir') | list }}"
+  loop_control:
+    label: "{{ item.path | relpath(extracted_dir) }}"
   notify:
     - Restart service
 
