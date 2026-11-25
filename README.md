@@ -1,6 +1,6 @@
 # zcash-ansible
 
-The Ansible playbooks Encapsulate uses to run Zcash Crosslink nodes and finalizers on the Crosslink v18 Feature Net (`crosslink_featurenet_20260929_staking3d`), and a service that converts a finalizer's commission into bonds.
+The Ansible playbooks Encapsulate uses to run Zcash Crosslink nodes and finalizers on the Crosslink v19 Feature Net (`crosslink_featurenet_20260929_staking3d`), and a service that converts a finalizer's commission into bonds.
 
 Our finalizer, Encapsulate, runs on these playbooks. You can see it on Holdfast, our explorer: https://holdfast.crosslink.encapsulate.xyz
 
@@ -26,10 +26,10 @@ Our finalizer, Encapsulate, runs on these playbooks. You can see it on Holdfast,
 
 `setup_autostake.yml` (role `autostake`), only on hosts with `autostake: true`:
 
-- A systemd service, `<service>-autostake`. Whenever the node's wallet holds more than a reserve (1 cTAZ, for the auto-convert's fees), it stakes the rest into new bonds on one finalizer, and waits for each bond to be mined before sending the next. Shielded and transparent funds both count, since a bond can be paid from either.
+- A systemd service, `<service>-autostake`. Whenever the node's wallet holds more than a reserve (1 cTAZ, for the auto-convert's fees), it stakes the rest into new bonds on one finalizer, and waits for each bond to be mined before sending the next. Bonds are paid from shielded notes only: transparent funds count once the wallet has shielded them, which it does by itself. One bond spends at most 20 notes, so a wallet split into many small notes stakes smaller bonds.
 - Consensus only takes new bonds inside the staking window (`block_height % 10368 < 3456`, one day in three), so outside it the script waits and logs the block the next window opens at. The auto-convert has no such limit.
 - Bonds must be a power of 10 zats, so each bond is the largest that fits, from 1 to 100 cTAZ (`group_vars/testnet.yml`). 888 cTAZ becomes 8 bonds of 100, 8 of 10 and 8 of 1.
-- Bond rewards already compound by themselves (the chain adds them to each bond), so this is for what the wallet receives: transparent funds, mining or anything sent to it.
+- Bond rewards already compound by themselves (the chain adds them to each bond), so this is for what the wallet receives: mining or anything sent to it.
 - The node's own wallet signs each bond, so it needs no seed. systemd still keeps it to the node's RPC on localhost.
 - `-e autostake_dry_run=true` checks everything and sends nothing.
 

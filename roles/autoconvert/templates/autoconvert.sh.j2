@@ -78,7 +78,7 @@ send_conversion() {
       elif .error.code == -32601 then "nomethod"
       else (.error.message // "") as $m
         | if ($m | test("Another stake in progress")) then "busy"
-          elif ($m | test("failed to create staking transaction")) then "nofunds"
+          elif ($m | test("failed to create staking transaction|Insufficient (eligible )?funds|can use at most [0-9]+ notes")) then "nofunds"
           elif ($m | test("cannot cover")) then "nobank"
           else "failed" end end' 2>/dev/null || echo failed
 }
