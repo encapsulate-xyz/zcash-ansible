@@ -2,9 +2,9 @@
 # maintains versions and can overwrite all.yml
 zcash:
   validator:
-    version: v18
+    version: v19
     # sha256 of the release's zebra-crosslink_<version>_ubuntu asset
-    checksum: sha256:7a623b404fb765afb4218eb2aad62bd478b169dad44b28960678d15f24ef83c3
+    checksum: sha256:72bb5debcb5d73107cb2b7d601ada7dbddd0aeafc6587b2a9a0402d5c409cebb
     # cache directory names for current and previous builds, so the chain state and wallet carry over
     cache_dir_name: crosslink_featurenet_20260929_staking3d
     previous_cache_dir_name: crosslink_featurenet_20260929

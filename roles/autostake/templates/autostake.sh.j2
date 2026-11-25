@@ -2,8 +2,8 @@
 # Stakes the {{ node_service_identifier }} wallet's free funds into new bonds on one finalizer, whenever
 # it holds enough, as the systemd service {{ service_identifier }} (setup_autostake.yml).
 # Bond rewards already compound by themselves (the chain adds them to each bond every block); this
-# puts to work what sits in the wallet instead: shielded notes and transparent funds alike, since a
-# bond can be paid from either.
+# puts to work what sits in the wallet instead. A bond is paid from shielded notes only (v19+);
+# transparent funds join them once the node's wallet has shielded them, which it does by itself.
 # Every value below comes from Ansible: edit the variables, not this file.
 #
 # The node's own wallet signs each bond, so no seed is involved: nothing here is secret.
@@ -37,8 +37,12 @@ rpc() { # method [params-json]
     curl -s -m 180 -X POST -H 'Content-Type: application/json' "$RPC" -d @-
 }
 tip() { rpc getblockcount | jq -r '.result // empty' 2>/dev/null; }
-available() { # shielded spendable + transparent: a bond can draw on both
-  rpc wallet_spendable_funds | jq -r 'if .result then .result.spendable_zats + .result.unshielded_zats else empty end' 2>/dev/null
+# Prints "<total> <bondable>": shielded spendable + transparent, which the reserve is held back from,
+# and the largest bond one transaction can pay after its fee: shielded notes only, 20 at most.
+# A node older than v19 has no max_stake_zats and pays bonds from both.
+funds() {
+  rpc wallet_spendable_funds |
+    jq -r 'if .result then .result | (.spendable_zats + .unshielded_zats) as $t | "\($t) \(.max_stake_zats // $t)" else empty end' 2>/dev/null
 }
 positions() {
   local n
@@ -62,8 +66,7 @@ stake() {
     jq -r 'if has("result") then "ok"
       else (.error.message // "no answer") as $m
         | if ($m | test("Another stake in progress")) then "busy"
-          elif ($m | test("failed to create staking transaction")) then "nofunds"
-          elif ($m | test("failed to build staking action")) then "notsent"
+          elif ($m | test("Insufficient (eligible )?funds|can use at most [0-9]+ notes")) then "nofunds"
           else $m end end' 2>/dev/null || echo "no answer"
 }
 
@@ -96,15 +99,17 @@ while true; do
     continue
   fi
 
-  avail=$(available)
+  read -r avail bondable <<<"$(funds)"
   if [ -z "$avail" ]; then
     log "wallet not ready yet (still syncing?); retrying in ${CHECK_EVERY}s"
     sleep "$CHECK_EVERY"
     continue
   fi
-  if ! amount=$(bond_size $((avail - RESERVE - FEE_MARGIN))); then
-    [ "$avail" != "$last_seen" ] && log "block $h: $(ctaz "$avail") cTAZ in the wallet, waiting for $(ctaz $((RESERVE + FEE_MARGIN + MIN_BOND))) to stake"
-    last_seen=$avail
+  free=$((avail - RESERVE - FEE_MARGIN))
+  ((bondable < free)) && free=$bondable
+  if ! amount=$(bond_size "$free"); then
+    [ "$avail/$bondable" != "$last_seen" ] && log "block $h: $(ctaz "$avail") cTAZ in the wallet, $(ctaz "$bondable") bondable now; waiting for $(ctaz $((RESERVE + FEE_MARGIN + MIN_BOND))) in the wallet and $(ctaz "$MIN_BOND") bondable"
+    last_seen="$avail/$bondable"
     sleep "$CHECK_EVERY"
     continue
   fi
@@ -122,7 +127,6 @@ while true; do
     ok) ;;
     busy) log "the wallet is busy with another staking action; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
     nofunds) log "the wallet couldn't fund the bond (funds not spendable yet?); retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
-    notsent) log "the node built the bond but the network refused it (the reason is in the node's log: grep 'failed to send transaction'); retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
     *) log "bond not sent: $result; retrying in ${CHECK_EVERY}s"; sleep "$CHECK_EVERY"; continue ;;
   esac
 
